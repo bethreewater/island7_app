@@ -1,0 +1,7 @@
+{
+  "name": "海島七號工程管理系統 - Pro",
+  "description": "整合工程知識庫之智慧管理系統。具備方案自動排程、工序追蹤、多維度報價與 PDF 自動化產出。支援離線作業與 IndexedDB 數據存儲。",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
