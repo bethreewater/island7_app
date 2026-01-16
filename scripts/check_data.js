@@ -13,15 +13,22 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+
 async function listCases() {
     console.log('Connecting to:', supabaseUrl);
-    const { data, error } = await supabase.from('cases').select('caseId, customerName, status');
 
-    if (error) {
-        console.error('Error fetching cases:', error);
+    // Check Cases
+    const { data: cases, error: casesError } = await supabase.from('cases').select('caseId');
+    if (casesError) console.error('Error fetching cases:', casesError);
+    else console.log(`Found ${cases.length} cases.`);
+
+    // Check Methods
+    const { data: methods, error: methodsError } = await supabase.from('methods').select('id, name');
+    if (methodsError) {
+        console.error('Error fetching methods:', methodsError);
     } else {
-        console.log(`Found ${data.length} cases:`);
-        data.forEach(c => console.log(`- [${c.status}] ${c.customerName} (${c.caseId})`));
+        console.log(`Found ${methods.length} methods in Technical Manual.`);
+        if (methods.length > 0) console.log(`Example: ${methods[0].name}`);
     }
 }
 

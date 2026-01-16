@@ -2,13 +2,16 @@
 import React from 'react';
 import { Home, FileText, Settings, ChevronLeft } from 'lucide-react';
 
+
 interface LayoutProps {
   children: React.ReactNode;
   title: string;
   onBack?: () => void;
+  onNavigate?: (view: 'dashboard' | 'datacenter' | 'settings') => void;
+  currentView?: 'dashboard' | 'datacenter' | 'settings';
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, title, onBack }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, title, onBack, onNavigate, currentView = 'dashboard' }) => {
   return (
     <div className="min-h-screen bg-[#fcfcfc] flex flex-col font-sans selection:bg-black selection:text-white">
       {/* 頂部導覽列 / OPTIMIZED HEADER FOR MOBILE */}
@@ -20,20 +23,36 @@ export const Layout: React.FC<LayoutProps> = ({ children, title, onBack }) => {
                 <ChevronLeft size={20} className="md:w-7 md:h-7 group-hover:-translate-x-1 transition-transform" />
               </button>
             ) : (
-              <div className="w-10 h-10 md:w-14 md:h-14 bg-white flex items-center justify-center rounded-sm shadow-xl transition-transform hover:rotate-12">
+              // Make logo clickable to go home
+              <button onClick={() => onNavigate?.('dashboard')} className="w-10 h-10 md:w-14 md:h-14 bg-white flex items-center justify-center rounded-sm shadow-xl transition-transform hover:rotate-12 cursor-pointer">
                 <div className="w-5 h-5 md:w-8 md:h-8 border-[3px] md:border-[5px] border-black rotate-45"></div>
-              </div>
+              </button>
             )}
             <div className="whitespace-nowrap">
               <h1 className="font-black text-lg md:text-2xl tracking-tighter uppercase leading-none">{title}</h1>
               <div className="text-[7px] md:text-[9px] uppercase font-black tracking-[0.3em] md:tracking-[0.5em] text-zinc-500 leading-none mt-1.5 md:mt-3">Island No. 7 / System</div>
             </div>
           </div>
-          
+
           <div className="hidden lg:flex items-center gap-14 text-[10px] font-black tracking-[0.4em] uppercase whitespace-nowrap">
-            <span className="text-white cursor-default border-b-2 border-white pb-1">管理首頁 / DASHBOARD</span>
-            <span className="text-zinc-500 hover:text-white cursor-pointer transition-colors">數據中心 / ANALYTICS</span>
-            <span className="text-zinc-500 hover:text-white cursor-pointer transition-colors">系統設定 / SETTINGS</span>
+            <button
+              onClick={() => onNavigate?.('dashboard')}
+              className={`transition-colors ${currentView === 'dashboard' ? 'text-white border-b-2 border-white pb-1 cursor-default' : 'text-zinc-500 hover:text-white'}`}
+            >
+              管理首頁 / DASHBOARD
+            </button>
+            <button
+              onClick={() => onNavigate?.('datacenter')}
+              className={`transition-colors ${currentView === 'datacenter' ? 'text-white border-b-2 border-white pb-1 cursor-default' : 'text-zinc-500 hover:text-white'}`}
+            >
+              數據中心 / ANALYTICS
+            </button>
+            <button
+              onClick={() => onNavigate?.('settings')}
+              className={`transition-colors ${currentView === 'settings' ? 'text-white border-b-2 border-white pb-1 cursor-default' : 'text-zinc-500 hover:text-white'}`}
+            >
+              系統設定 / SETTINGS
+            </button>
           </div>
         </div>
       </header>
