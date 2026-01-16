@@ -1,119 +1,129 @@
-
+import { supabase } from './supabaseClient';
 import { CaseData, CaseStatus, MethodItem } from '../types';
 import { METHOD_CATALOG } from '../constants';
 
-const DB_NAME = 'ISLAND7_DB_V2'; // 更改名稱以確保資料庫完全重建
-const STORE_CASES = 'cases';
-const STORE_METHODS = 'methods';
-const DB_VERSION = 12; // 提升版本
 const LOCAL_STORAGE_KEY = 'ISLAND7_CASES_V1';
 
-const openDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_CASES)) {
-        db.createObjectStore(STORE_CASES, { keyPath: 'caseId' });
-      }
-      if (db.objectStoreNames.contains(STORE_METHODS)) {
-        db.deleteObjectStore(STORE_METHODS);
-      }
-      db.createObjectStore(STORE_METHODS, { keyPath: 'id' });
-    };
-  });
-};
-
 export const initDB = async (): Promise<void> => {
-  const db = await openDB();
-  
-  // 強制同步方案資料庫
-  const transaction = db.transaction(STORE_METHODS, 'readwrite');
-  const store = transaction.objectStore(STORE_METHODS);
-  
-  // 先清除舊有的
-  store.clear();
-  
-  // 重新導入所有最新方案
-  for (const m of METHOD_CATALOG) {
-    store.put(m);
+  // 檢查是否需要初始化方案表
+  try {
+    const { count, error } = await supabase.from('methods').select('*', { count: 'exact', head: true });
+
+    if (!error && count === 0) {
+      console.log('Initializing methods table...');
+      const { error: insertError } = await supabase.from('methods').insert(METHOD_CATALOG);
+      if (insertError) console.error('Failed to initialize methods:', insertError);
+    }
+  } catch (err) {
+    console.error('Error checking methods table:', err);
   }
 
-  const legacyData = localStorage.getItem(LOCAL_STORAGE_KEY);
-  if (legacyData) {
-    try {
-      const cases: CaseData[] = JSON.parse(legacyData);
-      const transCases = db.transaction(STORE_CASES, 'readwrite');
-      const storeCases = transCases.objectStore(STORE_CASES);
-      for (const c of cases) storeCases.put(c);
-      localStorage.removeItem(LOCAL_STORAGE_KEY);
-    } catch (e) {
-      console.error('Migration failed', e);
-    }
-  }
+
+  /* 移民邏輯移除 */
 };
 
 export const getCases = async (): Promise<CaseData[]> => {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_CASES, 'readonly');
-    const request = transaction.objectStore(STORE_CASES).getAll();
-    request.onsuccess = () => resolve(request.result || []);
-    request.onerror = () => reject(request.error);
-  });
+  const { data, error } = await supabase.from('cases').select('*');
+  if (error) {
+    console.error('Error fetching cases:', error);
+    throw error; // Throw error to be caught by UI
+  }
+  return data || [];
+};
+
+export const subscribeToCases = (callback: () => void) => {
+  return supabase
+    .channel('cases-changes')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'cases' },
+      (payload) => {
+        console.log('Change received!', payload);
+        callback();
+      }
+    )
+    .subscribe();
 };
 
 export const saveCase = async (newCase: CaseData): Promise<void> => {
-  const db = await openDB();
-  const transaction = db.transaction(STORE_CASES, 'readwrite');
-  transaction.objectStore(STORE_CASES).put(newCase);
+  const { error } = await supabase.from('cases').upsert(newCase);
+  if (error) {
+    console.error('Error saving case:', error);
+    throw error;
+  }
 };
 
 export const deleteCase = async (caseId: string): Promise<void> => {
-  const db = await openDB();
-  const transaction = db.transaction(STORE_CASES, 'readwrite');
-  transaction.objectStore(STORE_CASES).delete(caseId);
+  const { error } = await supabase.from('cases').delete().eq('caseId', caseId);
+  if (error) {
+    console.error('Error deleting case:', error);
+    throw error;
+  }
 };
 
 export const getMethods = async (): Promise<MethodItem[]> => {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_METHODS, 'readonly');
-    const request = transaction.objectStore(STORE_METHODS).getAll();
-    request.onsuccess = () => resolve(request.result || []);
-    request.onerror = () => reject(request.error);
-  });
+  const { data, error } = await supabase.from('methods').select('*');
+  if (error) {
+    console.error('Error fetching methods:', error);
+    return [];
+  }
+  return data || [];
 };
 
 export const saveMethod = async (method: MethodItem): Promise<void> => {
-  const db = await openDB();
-  const transaction = db.transaction(STORE_METHODS, 'readwrite');
-  transaction.objectStore(STORE_METHODS).put(method);
+  const { error } = await supabase.from('methods').upsert(method);
+  if (error) {
+    console.error('Error saving method:', error);
+    throw error;
+  }
 };
 
 export const deleteMethod = async (id: string): Promise<void> => {
-  const db = await openDB();
-  const transaction = db.transaction(STORE_METHODS, 'readwrite');
-  transaction.objectStore(STORE_METHODS).delete(id);
+  const { error } = await supabase.from('methods').delete().eq('id', id);
+  if (error) {
+    console.error('Error deleting method:', error);
+    throw error;
+  }
 };
 
 export const generateNewCaseId = async (clientName: string): Promise<string> => {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const safeName = clientName.replace(/[\\/:*?"<>|]/g, '');
-  const cases = await getCases();
-  const sequence = (cases.filter(c => c.caseId.startsWith(dateStr)).length + 1).toString().padStart(3, '0');
+
+  // 使用 Supabase 過濾查詢來計算當日的案件數，避免一次拉取所有資料
+  const { count, error } = await supabase
+    .from('cases')
+    .select('caseId', { count: 'exact', head: true })
+    .ilike('caseId', `${dateStr}%`);
+
+  if (error) {
+    console.error('Error counting cases for ID generation:', error);
+    throw new Error('無法生成案件 ID');
+  }
+
+  const currentCount = count || 0;
+  const sequence = (currentCount + 1).toString().padStart(3, '0');
   return `${dateStr}-${sequence}-${safeName}`;
 };
 
 export const getInitialCase = async (clientName: string, phone: string, address: string, lineId: string = ''): Promise<CaseData> => {
   const caseId = await generateNewCaseId(clientName);
   return {
-    caseId, createdDate: new Date().toISOString(), customerName: clientName, phone, lineId, address,
-    status: CaseStatus.NEW, zones: [], specialNote: '', formalQuotedPrice: 0, manualPriceAdjustment: 0, finalPrice: 0,
-    schedule: [], changeOrders: [], logs: [], warrantyRecords: []
+    caseId,
+    createdDate: new Date().toISOString(),
+    customerName: clientName,
+    phone,
+    lineId,
+    address,
+    status: CaseStatus.NEW,
+    zones: [],
+    specialNote: '',
+    formalQuotedPrice: 0,
+    manualPriceAdjustment: 0,
+    finalPrice: 0,
+    schedule: [],
+    changeOrders: [],
+    logs: [],
+    warrantyRecords: []
   };
 };

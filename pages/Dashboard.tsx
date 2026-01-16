@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Search, FolderOpen, TrendingUp, AlertCircle, CheckCircle2, ArrowRight, Book, X, User, Phone, MessageSquare, MapPin } from 'lucide-react';
 import { CaseData, CaseStatus } from '../types';
-import { getCases, getInitialCase, saveCase, initDB } from '../services/storageService';
+import { getCases, getInitialCase, saveCase, initDB, subscribeToCases } from '../services/storageService';
 import { Button, Card, Input } from '../components/InputComponents';
 import { Layout } from '../components/Layout';
 
@@ -16,7 +16,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
   const [searchTerm, setSearchTerm] = useState('');
   const [showNewModal, setShowNewModal] = useState(false);
   const [loading, setLoading] = useState(true);
-  
+  const [error, setError] = useState<string | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
+  const [debugLog, setDebugLog] = useState<string>('');
+
+  const runDiagnostic = async () => {
+    const logs = [];
+    logs.push(`Time: ${new Date().toLocaleTimeString()}`);
+    logs.push(`UA: ${navigator.userAgent}`);
+    const url = import.meta.env.VITE_SUPABASE_URL || 'MISSING';
+    logs.push(`Supabase URL: ${url.slice(0, 15)}...`);
+
+    try {
+      logs.push('Testing fetch...');
+      const start = Date.now();
+      const res = await getCases();
+      logs.push(`Fetch success: ${res.length} items (${Date.now() - start}ms)`);
+    } catch (e: any) {
+      logs.push(`Fetch ERROR: ${e.message}`);
+      logs.push(`Details: ${JSON.stringify(e)}`);
+    }
+    setDebugLog(logs.join('\n'));
+  };
+
   const [newClient, setNewClient] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newLineId, setNewLineId] = useState('');
@@ -25,16 +47,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
   useEffect(() => {
     const loadData = async () => {
       try {
+        setError(null);
         await initDB();
         const loadedCases = await getCases();
         setCases(loadedCases.sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime()));
-      } catch (e) {
+      } catch (e: any) {
         console.error("Failed to load cases", e);
+        setError(e.message || "無法載入資料，請檢查網路連線");
       } finally {
         setLoading(false);
       }
     };
     loadData();
+
+    // 訂閱即時更新
+    const subscription = subscribeToCases(() => {
+      loadData();
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const stats = useMemo(() => ({
@@ -55,13 +88,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
       setNewLineId('');
       setNewAddress('');
       setShowNewModal(false);
-    } catch (e) {
-      alert("建立失敗");
+      setNewAddress('');
+      setShowNewModal(false);
+    } catch (e: any) {
+      alert("建立失敗: " + (e.message || "未知錯誤"));
     }
   };
 
-  const filteredCases = cases.filter(c => 
-    c.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filteredCases = cases.filter(c =>
+    c.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.caseId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.address?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -75,6 +110,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
 
   return (
     <Layout title="管理總覽 / DASHBOARD">
+
+      {/* 錯誤提示 / ERROR BANNER */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-sm mb-4 flex items-center gap-2">
+          <AlertCircle size={20} />
+          <span className="font-bold text-sm">{error}</span>
+          <button onClick={() => window.location.reload()} className="ml-auto text-xs underline">重試</button>
+        </div>
+      )}
+
       {/* 數據卡片 / COMPACT STATS FOR MOBILE */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
         <StatCard icon={<FolderOpen size={14} />} label="案件 / TOTAL" value={stats.total} />
@@ -85,13 +130,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
 
       {/* 操作按鈕 / COMPACT ACTIONS */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-8 md:mb-12">
-        <QuickActionButton 
+        <QuickActionButton
           onClick={() => setShowNewModal(true)}
           icon={<Plus size={20} />}
           title="建立 / NEW"
           subtitle="新增檔案"
         />
-        <QuickActionButton 
+        <QuickActionButton
           onClick={onOpenKB}
           icon={<Book size={20} />}
           title="知識 / KB"
@@ -101,9 +146,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
           <div className="text-[7px] md:text-[9px] font-black text-zinc-400 uppercase tracking-widest whitespace-nowrap leading-none">搜尋 / SEARCH</div>
           <div className="relative mt-1 md:mt-2">
             <Search className="absolute left-0 top-1 text-zinc-300" size={16} md:size={20} />
-            <input 
-              className="w-full bg-transparent border-none focus:ring-0 pl-6 md:pl-8 text-sm md:text-base font-black placeholder-zinc-100 outline-none" 
-              placeholder="搜尋案件..." 
+            <input
+              className="w-full bg-transparent border-none focus:ring-0 pl-6 md:pl-8 text-sm md:text-base font-black placeholder-zinc-100 outline-none"
+              placeholder="搜尋案件..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
@@ -123,9 +168,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
       {/* 列表內容 / LIST - COMPACT FOR MOBILE */}
       <div className="space-y-2 md:space-y-3">
         {filteredCases.length > 0 ? filteredCases.map(c => (
-          <div 
-            key={c.caseId} 
-            onClick={() => onSelectCase(c)} 
+          <div
+            key={c.caseId}
+            onClick={() => onSelectCase(c)}
             className="group bg-white border border-zinc-100 rounded-sm p-3 md:p-5 hover:border-zinc-950 transition-all cursor-pointer flex items-center justify-between shadow-sm"
           >
             <div className="flex items-center gap-4 md:gap-6 min-w-0">
@@ -143,10 +188,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
               </div>
             </div>
             <div className="flex items-center gap-3 shrink-0 ml-2">
-               <div className="text-right whitespace-nowrap">
-                  <div className="text-[12px] md:text-base font-black text-zinc-950 tracking-tighter leading-none">${(c.finalPrice || 0).toLocaleString()}</div>
-               </div>
-               <ArrowRight size={16} md:size={20} className="text-zinc-100 group-hover:text-zinc-950 transition-all" />
+              <div className="text-right whitespace-nowrap">
+                <div className="text-[12px] md:text-base font-black text-zinc-950 tracking-tighter leading-none">${(c.finalPrice || 0).toLocaleString()}</div>
+              </div>
+              <ArrowRight size={16} md:size={20} className="text-zinc-100 group-hover:text-zinc-950 transition-all" />
             </div>
           </div>
         )) : (
@@ -168,15 +213,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
                 <X size={18} />
               </button>
             </div>
-            
+
             <div className="p-5 md:p-8 space-y-4 md:space-y-6 overflow-y-auto max-h-[80vh]">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InputWithIcon icon={<User size={12}/>} label="客戶姓名 / NAME *" placeholder="全名" value={newClient} onChange={e => setNewClient(e.target.value)} />
-                <InputWithIcon icon={<Phone size={12}/>} label="聯絡電話 / PHONE" placeholder="09XX..." value={newPhone} onChange={e => setNewPhone(e.target.value)} />
+                <InputWithIcon icon={<User size={12} />} label="客戶姓名 / NAME *" placeholder="全名" value={newClient} onChange={e => setNewClient(e.target.value)} />
+                <InputWithIcon icon={<Phone size={12} />} label="聯絡電話 / PHONE" placeholder="09XX..." value={newPhone} onChange={e => setNewPhone(e.target.value)} />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InputWithIcon icon={<MessageSquare size={12}/>} label="通訊識別 / LINE ID" placeholder="ID" value={newLineId} onChange={e => setNewLineId(e.target.value)} />
-                <InputWithIcon icon={<MapPin size={12}/>} label="施工地址 / ADDRESS" placeholder="完整地點" value={newAddress} onChange={e => setNewAddress(e.target.value)} />
+                <InputWithIcon icon={<MessageSquare size={12} />} label="通訊識別 / LINE ID" placeholder="ID" value={newLineId} onChange={e => setNewLineId(e.target.value)} />
+                <InputWithIcon icon={<MapPin size={12} />} label="施工地址 / ADDRESS" placeholder="完整地點" value={newAddress} onChange={e => setNewAddress(e.target.value)} />
               </div>
               <div className="pt-4 flex gap-2 border-t border-zinc-50">
                 <Button variant="outline" className="flex-1" onClick={() => setShowNewModal(false)}>取消 / CANCEL</Button>
@@ -186,6 +231,36 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
           </div>
         </div>
       )}
+      {/* DEBUG PANEL */}
+      <div className="mt-8 pt-8 border-t border-dashed border-zinc-200 text-center">
+        <button
+          onClick={() => setShowDebug(!showDebug)}
+          className="text-[9px] font-black text-zinc-300 uppercase tracking-widest hover:text-zinc-500"
+        >
+          {showDebug ? 'CLOSE DIAGNOSTICS' : 'SYSTEM DIAGNOSTICS'}
+        </button>
+
+        {showDebug && (
+          <div className="mt-4 p-4 bg-zinc-950 text-green-400 font-mono text-xs text-left rounded-sm overflow-x-auto">
+            <div className="flex gap-2 mb-2 border-b border-zinc-800 pb-2">
+              <button
+                onClick={runDiagnostic}
+                className="bg-zinc-800 hover:bg-zinc-700 px-3 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider text-white"
+              >
+                Run Test
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="bg-zinc-800 hover:bg-zinc-700 px-3 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider text-white"
+              >
+                Reload App
+              </button>
+            </div>
+            <pre className="whitespace-pre-wrap">{debugLog || 'Press "Run Test" to start diagnostics...'}</pre>
+          </div>
+        )}
+      </div>
+
     </Layout>
   );
 };

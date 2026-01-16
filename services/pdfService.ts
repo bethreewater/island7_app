@@ -5,7 +5,7 @@ import { CaseData } from '../types';
 import { METHOD_CATALOG } from '../constants';
 
 const COMPANY_NAME = "ISLAND NO. 7 ENGINEERING";
-const COMPANY_ID = "VAT: XXXXXXXX"; 
+const COMPANY_ID = "VAT: XXXXXXXX";
 
 // Helper to format currency
 const formatCurrency = (num: number) => {
@@ -31,18 +31,18 @@ const setupDocument = (doc: jsPDF, title: string) => {
   // Pure Black Header
   doc.setFillColor(0, 0, 0);
   doc.rect(0, 0, 210, 40, 'F');
-  
+
   // Title - White Text
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(24);
   doc.setFont('helvetica', 'bold');
   doc.text(title.toUpperCase(), 14, 25);
-  
+
   // Subtitle
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.text("ISLAND NO. 7 ENGINEERING | PROFESSIONAL SOLUTIONS", 14, 32);
-  
+
   // Reset for Body
   doc.setTextColor(0, 0, 0);
 };
@@ -50,13 +50,13 @@ const setupDocument = (doc: jsPDF, title: string) => {
 const drawFooter = (doc: jsPDF) => {
   const pageHeight = doc.internal.pageSize.height;
   const pageCount = doc.getNumberOfPages();
-  
-  for(let i = 1; i <= pageCount; i++) {
+
+  for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.5);
     doc.line(14, pageHeight - 15, 196, pageHeight - 15);
-    
+
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.text(`${COMPANY_NAME}`, 14, pageHeight - 10);
@@ -68,22 +68,22 @@ const drawFooter = (doc: jsPDF) => {
 // 1. EVALUATION REPORT PDF (WITH PHOTOS)
 export const generateEvaluationPDF = (data: CaseData) => {
   const doc = new jsPDF();
-  
+
   setupDocument(doc, "Evaluation Report");
-  
+
   // Client Info Grid
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.text("CLIENT INFO", 14, 50);
   doc.setLineWidth(0.1);
   doc.line(14, 52, 196, 52);
-  
+
   doc.setFont('helvetica', 'normal');
   doc.text(`CASE ID: ${data.caseId}`, 14, 60);
   doc.text(`CLIENT: ${data.customerName}`, 14, 66);
   doc.text(`DATE: ${formatDate(data.createdDate)}`, 110, 60);
   doc.text(`ADDRESS: ${data.address}`, 110, 66);
-  
+
   let currentY = 75;
 
   data.zones.forEach((zone, zIndex) => {
@@ -100,7 +100,7 @@ export const generateEvaluationPDF = (data: CaseData) => {
     doc.setTextColor(0, 0, 0);
     const methodEn = getEnglishMethodName(zone.methodId, zone.methodName);
     doc.text(`ZONE ${zIndex + 1}: ${zone.zoneName}  |  ${methodEn}`, 16, currentY + 5.5);
-    
+
     currentY += 10;
 
     // Items Table (已移除 Quantity 欄位，尺寸改為 cm)
@@ -120,7 +120,7 @@ export const generateEvaluationPDF = (data: CaseData) => {
       body: tableBody,
       theme: 'plain',
       styles: { fontSize: 9, cellPadding: 4, font: 'helvetica' },
-      headStyles: { fillColor: [0,0,0], textColor: 255, fontStyle: 'bold' },
+      headStyles: { fillColor: [0, 0, 0], textColor: 255, fontStyle: 'bold' },
       columnStyles: {
         0: { cellWidth: 15 },
         1: { cellWidth: 70 },
@@ -139,12 +139,12 @@ export const generateEvaluationPDF = (data: CaseData) => {
       doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
       doc.text("SITE PHOTOS", 14, currentY - 2);
-      
+
       const imgWidth = 40;
       const imgHeight = 40;
       const gap = 5;
       let xOffset = 14;
-      
+
       photos.forEach((photoBase64, pIdx) => {
         if (currentY + imgHeight > 280) {
           doc.addPage();
@@ -176,11 +176,11 @@ export const generateEvaluationPDF = (data: CaseData) => {
     doc.addPage();
     currentY = 20;
   }
-  
+
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.5);
   doc.line(14, currentY, 196, currentY);
-  
+
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.text(`ESTIMATED TOTAL: ${formatCurrency(data.finalPrice)}`, 196, currentY + 10, { align: 'right' });
@@ -197,7 +197,7 @@ export const generateContractPDF = (data: CaseData) => {
   const startY = 50;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  
+
   doc.text("BETWEEN:", 14, startY);
   doc.setFont('helvetica', 'bold');
   doc.text(`CLIENT: ${data.customerName}`, 14, startY + 6);
@@ -216,8 +216,8 @@ export const generateContractPDF = (data: CaseData) => {
   doc.setFont('helvetica', 'bold');
   doc.text("TERMS AND CONDITIONS", 14, y);
   doc.setLineWidth(0.5);
-  doc.line(14, y+2, 196, y+2);
-  
+  doc.line(14, y + 2, 196, y + 2);
+
   y += 15;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
@@ -243,12 +243,12 @@ export const generateContractPDF = (data: CaseData) => {
   y += 30;
   doc.setFont('helvetica', 'bold');
   doc.text("SIGNATURES", 14, y);
-  
+
   y += 30;
   doc.setLineWidth(0.2);
   doc.line(14, y, 90, y);
   doc.text("Client Signature", 14, y + 5);
-  
+
   doc.line(110, y, 190, y);
   doc.text("Provider Signature", 110, y + 5);
 
@@ -265,7 +265,7 @@ export const generateInvoicePDF = (data: CaseData) => {
 
   doc.setFillColor(250, 250, 250);
   doc.rect(14, 45, 182, 25, 'F');
-  
+
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.text(`BILL TO: ${data.customerName}`, 20, 55);
@@ -292,8 +292,8 @@ export const generateInvoicePDF = (data: CaseData) => {
   doc.setFont('helvetica', 'bold');
   doc.text("PAYMENT DETAILS", 14, bankY);
   doc.setLineWidth(0.5);
-  doc.line(14, bankY+2, 60, bankY+2);
-  
+  doc.line(14, bankY + 2, 60, bankY + 2);
+
   doc.setFont('helvetica', 'normal');
   doc.text("Bank Name: 000 (Example Bank)", 14, bankY + 12);
   doc.text("Account No: 1234-5678-9012-3456", 14, bankY + 18);
