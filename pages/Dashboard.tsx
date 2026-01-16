@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, FolderOpen, TrendingUp, AlertCircle, CheckCircle2, ArrowRight, Book, X, User, Phone, MessageSquare, MapPin } from 'lucide-react';
+import { Plus, Search, FolderOpen, TrendingUp, AlertCircle, CheckCircle2, ArrowRight, Book, X, User, Phone, MessageSquare, MapPin, Trash2, Edit } from 'lucide-react';
 import { CaseData, CaseStatus } from '../types';
-import { getCases, getInitialCase, saveCase, initDB, subscribeToCases } from '../services/storageService';
+import { getCases, getInitialCase, saveCase, deleteCase, initDB, subscribeToCases } from '../services/storageService';
 import { Button, Card, Input } from '../components/InputComponents';
 import { Layout } from '../components/Layout';
 
@@ -18,6 +18,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [editingCaseId, setEditingCaseId] = useState<string | null>(null);
   const [newClient, setNewClient] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newLineId, setNewLineId] = useState('');
@@ -56,21 +57,65 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
     revenue: cases.reduce((sum, c) => sum + (c.finalPrice || 0), 0)
   }), [cases]);
 
-  const handleCreate = async () => {
+  const handleSave = async () => {
     if (!newClient) return;
     try {
-      const newCase = await getInitialCase(newClient, newPhone, newAddress, newLineId);
-      await saveCase(newCase);
-      onSelectCase(newCase);
+      let caseToSave: CaseData;
+
+      if (editingCaseId) {
+        // Edit Mode
+        const existingCase = cases.find(c => c.caseId === editingCaseId);
+        if (!existingCase) throw new Error("Case not found");
+
+        caseToSave = {
+          ...existingCase,
+          customerName: newClient,
+          phone: newPhone,
+          lineId: newLineId,
+          address: newAddress,
+        };
+      } else {
+        // Create Mode
+        caseToSave = await getInitialCase(newClient, newPhone, newAddress, newLineId);
+      }
+
+      await saveCase(caseToSave);
+
+      // If creating, navigate to it. If editing, just close modal.
+      if (!editingCaseId) {
+        onSelectCase(caseToSave);
+      }
+
       setNewClient('');
       setNewPhone('');
       setNewLineId('');
       setNewAddress('');
-      setShowNewModal(false);
-      setNewAddress('');
+      setEditingCaseId(null);
       setShowNewModal(false);
     } catch (e: any) {
-      alert("建立失敗: " + (e.message || "未知錯誤"));
+      alert("儲存失敗: " + (e.message || "未知錯誤"));
+    }
+  };
+
+  const handleEdit = (c: CaseData, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+    setEditingCaseId(c.caseId);
+    setNewClient(c.customerName);
+    setNewPhone(c.phone);
+    setNewLineId(c.lineId || '');
+    setNewAddress(c.address);
+    setShowNewModal(true);
+  };
+
+  const handleDelete = async (caseId: string, caseName: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+    if (confirm(`確定要刪除案件「${caseName}」嗎？此動作無法復原！`)) {
+      try {
+        await deleteCase(caseId);
+        // Data will reload via subscription
+      } catch (err: any) {
+        alert("刪除失敗: " + err.message);
+      }
     }
   };
 
@@ -110,7 +155,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
       {/* 操作按鈕 / COMPACT ACTIONS */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-8 md:mb-12">
         <QuickActionButton
-          onClick={() => setShowNewModal(true)}
+          onClick={() => {
+            setEditingCaseId(null);
+            setNewClient('');
+            setNewPhone('');
+            setNewLineId('');
+            setNewAddress('');
+            setShowNewModal(true);
+          }}
           icon={<Plus size={20} />}
           title="建立 / NEW"
           subtitle="新增檔案"
@@ -167,6 +219,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
               </div>
             </div>
             <div className="flex items-center gap-3 shrink-0 ml-2">
+              {/* 編輯/刪除按鈕 (Desktop shows on hover, Mobile always visible) */}
+              <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={(e) => handleEdit(c, e)}
+                  className="p-2 hover:bg-zinc-100 rounded-full text-zinc-400 hover:text-zinc-950 transition-colors"
+                  title="編輯案件"
+                >
+                  <Edit size={14} md:size={16} />
+                </button>
+                <button
+                  onClick={(e) => handleDelete(c.caseId, c.customerName, e)}
+                  className="p-2 hover:bg-red-50 rounded-full text-zinc-400 hover:text-red-600 transition-colors"
+                  title="刪除案件"
+                >
+                  <Trash2 size={14} md:size={16} />
+                </button>
+              </div>
+
               <div className="text-right whitespace-nowrap">
                 <div className="text-[12px] md:text-base font-black text-zinc-950 tracking-tighter leading-none">${(c.finalPrice || 0).toLocaleString()}</div>
               </div>
@@ -186,7 +256,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
           <div className="bg-white rounded-sm shadow-2xl w-full max-w-lg overflow-hidden border border-zinc-800 animate-in zoom-in-95 duration-200">
             <div className="bg-zinc-950 text-white px-5 py-4 flex justify-between items-center whitespace-nowrap">
               <div>
-                <h3 className="font-black text-base md:text-xl tracking-tight uppercase leading-none">建立檔案 / CREATE</h3>
+                <h3 className="font-black text-base md:text-xl tracking-tight uppercase leading-none">
+                  {editingCaseId ? '編輯檔案 / EDIT' : '建立檔案 / CREATE'}
+                </h3>
               </div>
               <button onClick={() => setShowNewModal(false)} className="p-1.5 hover:bg-white/10 rounded-full transition-colors active:scale-90">
                 <X size={18} />
@@ -204,7 +276,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
               </div>
               <div className="pt-4 flex gap-2 border-t border-zinc-50">
                 <Button variant="outline" className="flex-1" onClick={() => setShowNewModal(false)}>取消 / CANCEL</Button>
-                <Button className="flex-1" onClick={handleCreate} disabled={!newClient}>確認建立 / OK</Button>
+                <Button className="flex-1" onClick={handleSave} disabled={!newClient}>
+                  {editingCaseId ? '儲存變更 / SAVE' : '確認建立 / OK'}
+                </Button>
               </div>
             </div>
           </div>
