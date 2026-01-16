@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Home, FileText, Settings, ChevronLeft } from 'lucide-react';
+import { Home, FileText, Settings, ChevronLeft, TrendingUp } from 'lucide-react';
 
 
 interface LayoutProps {
@@ -63,17 +63,33 @@ export const Layout: React.FC<LayoutProps> = ({ children, title, onBack, onNavig
       </main>
 
       {/* 行動端導航列 / MOBILE NAVIGATION */}
+      {/* 行動端導航列 / MOBILE NAVIGATION */}
       <nav className="fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-3xl border-t border-zinc-100 flex justify-around py-4 pb-safe z-[60] md:hidden shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-        <NavButton icon={<Home size={20} />} label="總覽 / DASHBOARD" active />
-        <NavButton icon={<FileText size={20} />} label="文件 / DOCUMENTS" />
-        <NavButton icon={<Settings size={20} />} label="工具 / UTILITIES" />
+        <NavButton
+          icon={<Home size={20} />}
+          label="總覽 / DASHBOARD"
+          active={currentView === 'dashboard'}
+          onClick={() => onNavigate?.('dashboard')}
+        />
+        <NavButton
+          icon={<TrendingUp size={20} />}
+          label="數據 / ANALYTICS"
+          active={currentView === 'datacenter'}
+          onClick={() => onNavigate?.('datacenter')}
+        />
+        <NavButton
+          icon={<Settings size={20} />}
+          label="設定 / SETTINGS"
+          active={currentView === 'settings'}
+          onClick={() => onNavigate?.('settings')}
+        />
       </nav>
     </div>
   );
 };
 
-const NavButton = ({ icon, label, active = false }: { icon: React.ReactNode, label: string, active?: boolean }) => (
-  <button className={`flex flex-col items-center gap-1 transition-all whitespace-nowrap ${active ? 'text-black scale-105' : 'text-zinc-300 hover:text-black'}`}>
+const NavButton = ({ icon, label, active = false, onClick }: { icon: React.ReactNode, label: string, active?: boolean, onClick?: () => void }) => (
+  <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-all whitespace-nowrap ${active ? 'text-black scale-105' : 'text-zinc-300 hover:text-black'}`}>
     {icon}
     <span className="text-[8px] font-black uppercase tracking-[0.1em]">{label.split(' / ')[1]}</span>
     {active && <div className="w-1 h-1 bg-black rounded-full mt-0.5"></div>}
