@@ -17,27 +17,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
   const [showNewModal, setShowNewModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showDebug, setShowDebug] = useState(false);
-  const [debugLog, setDebugLog] = useState<string>('');
-
-  const runDiagnostic = async () => {
-    const logs = [];
-    logs.push(`Time: ${new Date().toLocaleTimeString()}`);
-    logs.push(`UA: ${navigator.userAgent}`);
-    const url = import.meta.env.VITE_SUPABASE_URL || 'MISSING';
-    logs.push(`Supabase URL: ${url.slice(0, 15)}...`);
-
-    try {
-      logs.push('Testing fetch...');
-      const start = Date.now();
-      const res = await getCases();
-      logs.push(`Fetch success: ${res.length} items (${Date.now() - start}ms)`);
-    } catch (e: any) {
-      logs.push(`Fetch ERROR: ${e.message}`);
-      logs.push(`Details: ${JSON.stringify(e)}`);
-    }
-    setDebugLog(logs.join('\n'));
-  };
 
   const [newClient, setNewClient] = useState('');
   const [newPhone, setNewPhone] = useState('');
@@ -231,35 +210,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB }) 
           </div>
         </div>
       )}
-      {/* DEBUG PANEL */}
-      <div className="mt-8 pt-8 border-t border-dashed border-zinc-200 text-center">
-        <button
-          onClick={() => setShowDebug(!showDebug)}
-          className="text-[9px] font-black text-zinc-300 uppercase tracking-widest hover:text-zinc-500"
-        >
-          {showDebug ? 'CLOSE DIAGNOSTICS' : 'SYSTEM DIAGNOSTICS'}
-        </button>
-
-        {showDebug && (
-          <div className="mt-4 p-4 bg-zinc-950 text-green-400 font-mono text-xs text-left rounded-sm overflow-x-auto">
-            <div className="flex gap-2 mb-2 border-b border-zinc-800 pb-2">
-              <button
-                onClick={runDiagnostic}
-                className="bg-zinc-800 hover:bg-zinc-700 px-3 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider text-white"
-              >
-                Run Test
-              </button>
-              <button
-                onClick={() => window.location.reload()}
-                className="bg-zinc-800 hover:bg-zinc-700 px-3 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider text-white"
-              >
-                Reload App
-              </button>
-            </div>
-            <pre className="whitespace-pre-wrap">{debugLog || 'Press "Run Test" to start diagnostics...'}</pre>
-          </div>
-        )}
-      </div>
 
     </Layout>
   );
