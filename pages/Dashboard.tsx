@@ -222,8 +222,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB, on
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-0.5 whitespace-nowrap overflow-hidden">
                     <span className="font-black text-sm md:text-lg tracking-tight text-zinc-950 uppercase truncate">{c.customerName}</span>
-                    <span className={`text-[6px] md:text-[8px] px-1.5 py-0.5 rounded-sm border uppercase font-black tracking-widest ${c.status === CaseStatus.NEW ? 'bg-zinc-950 text-white' : 'text-zinc-400'}`}>
-                      {c.status === CaseStatus.NEW ? 'NEW' : c.status === CaseStatus.PROGRESS ? 'RUN' : 'END'}
+                    {/* Status Badge */}
+                    <span className={`text-[8px] md:text-[10px] px-2 py-0.5 rounded-sm border uppercase font-black tracking-widest ${c.status === CaseStatus.NEW ? 'bg-zinc-950 text-white border-zinc-950' :
+                        c.status === CaseStatus.PROGRESS ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          c.status === CaseStatus.WARRANTY ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                            'bg-zinc-50 text-zinc-400 border-zinc-100'
+                      }`}>
+                      {c.status === CaseStatus.NEW ? '新案 / NEW' :
+                        c.status === CaseStatus.PROGRESS ? '施工 / RUN' :
+                          c.status === CaseStatus.WARRANTY ? '保固 / WRTY' :
+                            '完工 / DONE'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-[8px] md:text-[10px] font-black text-zinc-300 tracking-tight whitespace-nowrap opacity-60">
