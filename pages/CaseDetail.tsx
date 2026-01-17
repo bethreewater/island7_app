@@ -546,9 +546,14 @@ const ZoneCard: React.FC<{ zone: Zone; methods: MethodItem[]; onUpdate: (z: Zone
               </div>
 
               <div className="flex justify-between items-end">
-                <div className="text-xl font-black text-zinc-950">
-                  {isPing ? item.areaPing : item.quantity}
-                  <span className="text-[10px] text-zinc-400 uppercase ml-1">{isPing ? 'PING' : zone.unit === '式' ? 'SET' : 'UNIT'}</span>
+                <div className="flex flex-col">
+                  <div className="text-xl font-black text-zinc-950">
+                    {isPing ? item.areaPing : item.quantity}
+                    <span className="text-[10px] text-zinc-400 uppercase ml-1">{isPing ? 'PING' : zone.unit === '式' ? 'SET' : 'UNIT'}</span>
+                  </div>
+                  <div className="text-[10px] font-bold text-zinc-500">
+                    單項價格: ${item.itemPrice?.toLocaleString()}
+                  </div>
                 </div>
                 <ImageUploader images={item.photos} onImagesChange={imgs => updateItem(iIdx, 'photos', imgs)} maxImages={3} />
               </div>
