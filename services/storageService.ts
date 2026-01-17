@@ -52,6 +52,21 @@ export const getCaseDetails = async (caseId: string): Promise<CaseData | null> =
   return data;
 };
 
+export const getAnalyticsData = async (): Promise<CaseData[]> => {
+  // Fetches data for DataCenter. 
+  // We need zones to determine Category, but we DON'T need logs or schedule.
+  // This avoids downloading heavy daily logs/photos.
+  const { data, error } = await supabase
+    .from('cases')
+    .select('caseId, status, finalPrice, zones, createdDate');
+
+  if (error) {
+    console.error('Error fetching analytics data:', error);
+    throw error;
+  }
+  return (data || []) as CaseData[];
+};
+
 export const subscribeToCases = (callback: () => void) => {
   return supabase
     .channel('cases-changes')
@@ -160,11 +175,12 @@ export const generateNewCaseId = async (clientName: string): Promise<string> => 
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const safeName = clientName.replace(/[\\/:*?"<>|]/g, '');
 
-  // 使用 Supabase 過濾查詢來計算當日的案件數，避免一次拉取所有資料
+  // Generate EVALUATION ID (EVAL-YYYYMMDD-SEQ)
+  // Count existing evaluations for today
   const { count, error } = await supabase
     .from('cases')
     .select('caseId', { count: 'exact', head: true })
-    .ilike('caseId', `${dateStr}%`);
+    .ilike('caseId', `EVAL-${dateStr}%`);
 
   if (error) {
     console.error('Error counting cases for ID generation:', error);
@@ -173,7 +189,49 @@ export const generateNewCaseId = async (clientName: string): Promise<string> => 
 
   const currentCount = count || 0;
   const sequence = (currentCount + 1).toString().padStart(3, '0');
+  return `EVAL-${dateStr}-${sequence}-${safeName}`;
+};
+
+export const generateFormalId = async (clientName: string): Promise<string> => {
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const safeName = clientName.replace(/[\\/:*?"<>|]/g, '');
+
+  // Generate FORMAL PROJECT ID (YYYYMMDD-SEQ)
+  // Exclude EVAL IDs
+  const { count, error } = await supabase
+    .from('cases')
+    .select('caseId', { count: 'exact', head: true })
+    .ilike('caseId', `${dateStr}%`)
+    .not('caseId', 'ilike', 'EVAL%');
+
+  if (error) {
+    console.error('Error counting cases for Formal ID generation:', error);
+    throw new Error('無法生成正式編號');
+  }
+
+  const currentCount = count || 0;
+  const sequence = (currentCount + 1).toString().padStart(3, '0');
   return `${dateStr}-${sequence}-${safeName}`;
+};
+
+export const formalizeCase = async (oldCase: CaseData): Promise<CaseData> => {
+  // 1. Generate new Formal ID
+  const newId = await generateFormalId(oldCase.customerName);
+
+  // 2. Create new case object with new ID and promoted status
+  const newCase: CaseData = {
+    ...oldCase,
+    caseId: newId,
+    status: CaseStatus.DEPOSIT_RECEIVED // Ensure status is set
+  };
+
+  // 3. Save new case
+  await saveCase(newCase);
+
+  // 4. Delete old case (EVAL)
+  await deleteCase(oldCase.caseId);
+
+  return newCase;
 };
 
 export const getInitialCase = async (clientName: string, phone: string, address: string, lineId: string = ''): Promise<CaseData> => {

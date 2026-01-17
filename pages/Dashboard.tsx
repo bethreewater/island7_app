@@ -53,11 +53,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB, on
   }, []);
 
   const stats = useMemo(() => {
+    const assessmentStatuses = [CaseStatus.ASSESSMENT, CaseStatus.NEW];
     const activeStatuses = [CaseStatus.DEPOSIT_RECEIVED, CaseStatus.PLANNING, CaseStatus.CONSTRUCTION, CaseStatus.FINAL_PAYMENT, CaseStatus.PROGRESS];
     const doneStatuses = [CaseStatus.COMPLETED, CaseStatus.WARRANTY, CaseStatus.DONE];
 
     return {
-      total: cases.length,
+      assessment: cases.filter(c => assessmentStatuses.includes(c.status as CaseStatus)).length,
       progress: cases.filter(c => activeStatuses.includes(c.status as CaseStatus)).length,
       done: cases.filter(c => doneStatuses.includes(c.status as CaseStatus)).length,
       revenue: cases.reduce((sum, c) => sum + (c.finalPrice || 0), 0)
@@ -181,8 +182,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB, on
 
         {/* 數據卡片 / COMPACT STATS FOR MOBILE */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
-          <StatCard icon={<FolderOpen size={14} />} label="案件 / TOTAL" value={stats.total} />
-          <StatCard icon={<AlertCircle size={14} />} label="進度 / ACTIVE" value={stats.progress} dark />
+          <StatCard icon={<FolderOpen size={14} />} label="評估 / EVAL" value={stats.assessment} />
+          <StatCard icon={<AlertCircle size={14} />} label="進行 / ACTIVE" value={stats.progress} dark />
           <StatCard icon={<CheckCircle2 size={14} />} label="完工 / DONE" value={stats.done} />
           <StatCard icon={<TrendingUp size={14} />} label="營收 / REVENUE" value={`$${parseFloat((stats.revenue / 1000).toFixed(1))}k`} />
         </div>

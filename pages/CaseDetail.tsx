@@ -7,7 +7,7 @@ import {
   Clock, Info, FileText, Camera, CloudRain, Sun, Cloud, History, FastForward, Coffee, AlertTriangle, Play, Square, Pause, SkipForward, ShieldCheck, Eye
 } from 'lucide-react';
 import { CaseData, Zone, ScheduleTask, MethodItem, ServiceCategory, ConstructionLog, BreakPeriod, CaseStatus, STATUS_LABELS, MethodRecipe } from '../types';
-import { getMethods, saveCase, getRecipes, getMaterials } from '../services/storageService';
+import { getMethods, saveCase, getRecipes, getMaterials, formalizeCase } from '../services/storageService';
 import { generateContractPDF, generateEvaluationPDF, generateInvoicePDF } from '../services/pdfService';
 import { Button, Card, Input, ImageUploader, Select } from '../components/InputComponents';
 import { Layout } from '../components/Layout';
@@ -578,7 +578,7 @@ const ProjectCalendar: React.FC<{ schedule: ScheduleTask[]; logs: ConstructionLo
 // --- 區域卡片元件 / ZONE CARD ---
 const ZoneCard: React.FC<{ zone: Zone; methods: MethodItem[]; onUpdate: (z: Zone) => void; onDelete: () => void }> = ({ zone, methods, onUpdate, onDelete }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const filteredMethods = useMemo(() => methods.filter(m => m.category === zone.category), [methods, zone.category]);
+  const filteredMethods = useMemo(() => methods.filter(m => m.category === zone.category).sort((a, b) => a.defaultUnitPrice - b.defaultUnitPrice), [methods, zone.category]);
   const isPing = zone.unit === '坪';
 
   const updateItem = (iIdx: number, field: string, value: any) => {
@@ -774,6 +774,30 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
   };
 
 
+  const handleStatusChange = async (newStatus: CaseStatus) => {
+    // Formalization Logic: Assessment -> Deposit Received (Move EVAL- to Formal ID)
+    if (newStatus === CaseStatus.DEPOSIT_RECEIVED &&
+      localData.status === CaseStatus.ASSESSMENT &&
+      localData.caseId.startsWith('EVAL-')) {
+
+      if (confirm("【確認案件正式成立】\n\n是否確認將此評估單轉為正式案件？\n系統將自動生成正式合約編號 (YYYYMMDD-XXX)，並移除 EVAL 標記。")) {
+        try {
+          const formalized = await formalizeCase(localData);
+          onUpdate(formalized);
+          alert(`案件正式成立！\n正式編號: ${formalized.caseId}`);
+          return;
+        } catch (e) {
+          alert("轉正失敗: " + e);
+          return;
+        }
+      } else {
+        return; // Cancelled
+      }
+    }
+
+    handleUpdate({ ...localData, status: newStatus });
+  };
+
   const STATUS_ORDER = [
     CaseStatus.ASSESSMENT,
     CaseStatus.DEPOSIT_RECEIVED,
@@ -847,7 +871,7 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
   return (
     <Layout title={localData.customerName} onBack={onBack}>
       <div className="max-w-7xl mx-auto px-0 md:px-0 pt-2 mb-2">
-        <CaseStatusStepper currentStatus={localData.status} onSetStatus={(s) => handleUpdate({ ...localData, status: s })} />
+        <CaseStatusStepper currentStatus={localData.status} onSetStatus={handleStatusChange} />
       </div>
 
       <div className="flex border-b border-zinc-100 mb-6 sticky top-16 md:top-28 bg-[#fcfcfc]/90 backdrop-blur-md z-40 shadow-sm overflow-x-auto no-scrollbar">
