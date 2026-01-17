@@ -8,9 +8,11 @@ import { Settings } from './pages/Settings';
 import { CaseData } from './types';
 
 
+
 import { supabase } from './services/supabaseClient';
 import { Login } from './pages/Login';
 import { Session } from '@supabase/supabase-js';
+import { preloadFont } from './services/pdfService';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -18,6 +20,9 @@ const App: React.FC = () => {
   const [selectedCase, setSelectedCase] = useState<CaseData | null>(null);
 
   React.useEffect(() => {
+    // Preload PDF Font (Background)
+    preloadFont();
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
     });

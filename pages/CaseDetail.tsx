@@ -4,7 +4,7 @@ import {
   Trash2, Plus, Calculator, FileCheck, Edit3,
   Layers, Calendar as CalendarIcon, Save,
   Wand2, CheckCircle2, ChevronLeft, ChevronRight, MapPin, X, ChevronDown, ChevronUp,
-  Clock, Info, FileText, Camera, CloudRain, Sun, Cloud, History, FastForward, Coffee, AlertTriangle, Play, Square, Pause, SkipForward, ShieldCheck
+  Clock, Info, FileText, Camera, CloudRain, Sun, Cloud, History, FastForward, Coffee, AlertTriangle, Play, Square, Pause, SkipForward, ShieldCheck, Eye
 } from 'lucide-react';
 import { CaseData, Zone, ScheduleTask, MethodItem, ServiceCategory, ConstructionLog, BreakPeriod } from '../types';
 import { getMethods, saveCase } from '../services/storageService';
@@ -13,7 +13,46 @@ import { Button, Card, Input, ImageUploader, Select } from '../components/InputC
 import { Layout } from '../components/Layout';
 import { STANDARD_LOG_ACTIONS } from '../constants';
 
+const TabButton: React.FC<{ active: boolean; onClick: () => void; icon: React.ReactNode; label: string }> = ({ active, onClick, icon, label }) => (
+  <button onClick={onClick} className={`flex-1 py-3 px-2 flex flex-col items-center border-b-2 transition-all relative ${active ? 'border-zinc-950 text-zinc-950 bg-white' : 'border-transparent text-zinc-300'}`}>
+    <div className={`transition-transform mb-1 ${active ? 'scale-110' : 'scale-90 opacity-40'}`}>{icon}</div>
+    <div className="flex flex-col leading-none">
+      <span className="text-[9px] font-black uppercase tracking-tighter whitespace-nowrap">{label.split(' / ')[0]}</span>
+      <span className="text-[6px] font-black uppercase opacity-40 tracking-widest mt-0.5">{label.split(' / ')[1]}</span>
+    </div>
+    {active && <div className="absolute top-0 left-0 w-full h-0.5 bg-zinc-950"></div>}
+  </button>
+);
+
 // --- 施工日誌分頁 / CONSTRUCTION LOG TAB ---
+
+const ExportButton: React.FC<{ onClick: () => Promise<void>; icon: React.ReactNode; label: string }> = ({ onClick, icon, label }) => {
+  const [loading, setLoading] = useState(false);
+
+  const handleClick = async () => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      await onClick();
+    } catch (e) {
+      alert("Export Failed: " + e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button
+      onClick={handleClick}
+      variant="outline"
+      className={`h-16 border-zinc-200 ${loading ? 'opacity-50 cursor-wait' : ''}`}
+    >
+      {loading ? <div className="animate-spin mr-2"><Wand2 size={20} /></div> : <span className="mr-2">{icon}</span>}
+      {loading ? 'GENERATING...' : label}
+    </Button>
+  );
+};
+
 const ConstructionLogTab: React.FC<{
   schedule: ScheduleTask[];
   logs: ConstructionLog[];
@@ -607,6 +646,12 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
   }, []);
 
   const handleUpdate = async (newData: CaseData) => {
+    // 1. Recalculate Final Price
+    const baseTotal = newData.zones.reduce((sum, zone) =>
+      sum + zone.items.reduce((zSum, item) => zSum + (item.itemPrice || 0), 0), 0
+    );
+    newData.finalPrice = baseTotal + (newData.manualPriceAdjustment || 0);
+
     setLocalData(newData);
     isSelfUpdate.current = true;
 
@@ -680,10 +725,39 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
                 </div>
               </div>
             </Card>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Button onClick={() => generateEvaluationPDF(localData)} variant="outline" className="h-16 border-zinc-200"><Layers size={20} /> 現勘報告 / EVAL</Button>
-              <Button onClick={() => generateContractPDF(localData)} variant="outline" className="h-16 border-zinc-200"><FileCheck size={20} /> 合約文件 / CONTRACT</Button>
-              <Button onClick={() => generateInvoicePDF(localData)} variant="outline" className="h-16 border-zinc-200"><Calculator size={20} /> 報價清單 / QUOTE</Button>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <ExportButton
+                onClick={() => {
+                  const realParams = { ...localData, finalPrice: calculatedTotal + (localData.manualPriceAdjustment || 0) };
+                  generateEvaluationPDF(realParams, 'preview');
+                }}
+                icon={<Eye size={20} />}
+                label="預覽評估 / EVAL"
+              />
+              <ExportButton
+                onClick={() => {
+                  const realParams = { ...localData, finalPrice: calculatedTotal + (localData.manualPriceAdjustment || 0) };
+                  generateContractPDF(realParams, 'preview');
+                }}
+                icon={<Eye size={20} />}
+                label="預覽合約 / CONTRACT"
+              />
+              <ExportButton
+                onClick={() => {
+                  const realParams = { ...localData, finalPrice: calculatedTotal + (localData.manualPriceAdjustment || 0) };
+                  generateInvoicePDF(realParams, 'DEPOSIT', 'preview');
+                }}
+                icon={<Eye size={20} />}
+                label="預覽頭期 / DEPOSIT"
+              />
+              <ExportButton
+                onClick={() => {
+                  const realParams = { ...localData, finalPrice: calculatedTotal + (localData.manualPriceAdjustment || 0) };
+                  generateInvoicePDF(realParams, 'FINAL', 'preview');
+                }}
+                icon={<Eye size={20} />}
+                label="預覽尾款 / FINAL"
+              />
             </div>
           </div>
         )}
@@ -744,13 +818,4 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
   );
 };
 
-const TabButton: React.FC<{ active: boolean; onClick: () => void; icon: React.ReactNode; label: string }> = ({ active, onClick, icon, label }) => (
-  <button onClick={onClick} className={`flex-1 py-3 px-2 flex flex-col items-center border-b-2 transition-all relative ${active ? 'border-zinc-950 text-zinc-950 bg-white' : 'border-transparent text-zinc-300'}`}>
-    <div className={`transition-transform mb-1 ${active ? 'scale-110' : 'scale-90 opacity-40'}`}>{icon}</div>
-    <div className="flex flex-col leading-none">
-      <span className="text-[9px] font-black uppercase tracking-tighter whitespace-nowrap">{label.split(' / ')[0]}</span>
-      <span className="text-[6px] font-black uppercase opacity-40 tracking-widest mt-0.5">{label.split(' / ')[1]}</span>
-    </div>
-    {active && <div className="absolute top-0 left-0 w-full h-0.5 bg-zinc-950"></div>}
-  </button>
-);
+
