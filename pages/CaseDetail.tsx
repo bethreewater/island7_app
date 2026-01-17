@@ -468,7 +468,18 @@ const ZoneCard: React.FC<{ zone: Zone; methods: MethodItem[]; onUpdate: (z: Zone
     onUpdate({ ...zone, items: newItems });
   };
 
-  const QUICK_TAGS = ['主臥衛浴', '客浴', '廚房', '陽台', '頂樓地坪', '外牆', '窗框', '地下室'];
+  const TAG_MAP: Record<string, string[]> = {
+    [ServiceCategory.WALL_CANCER]: ['主臥牆面', '客廳牆面', '廚房', '走道', '天花板', '樓梯間'],
+    [ServiceCategory.WALL_WATERPROOF]: ['前陽台外牆', '後陽台外牆', '側面外牆', '頂樓女兒牆', '窗框周邊'],
+    [ServiceCategory.ROOF_WATERPROOF]: ['頂樓地坪', '頂樓水塔區', '露台', '樓梯間屋頂'],
+    [ServiceCategory.CRACK]: ['客廳牆面', '臥室牆面', '外牆裂縫', '窗角裂縫'],
+    [ServiceCategory.STRUCTURE]: ['天花板鋼筋', '樑柱裂損', '承重牆', '陽台天花'],
+    [ServiceCategory.SILICONE_BATH]: ['主臥衛浴', '客浴', '淋浴間', '浴缸周邊', '乾溼分離'],
+    [ServiceCategory.SILICONE_WINDOW]: ['客廳落地窗', '主臥窗戶', '廚房窗戶', '陽台門框', '採光罩'],
+    [ServiceCategory.CUSTOM]: ['儲藏室', '車庫', '地下室', '其他區域']
+  };
+
+  const currentTags = TAG_MAP[zone.category] || ['主臥', '客廳', '廚房', '陽台', '其他'];
 
   return (
     <Card className="border-t-4 border-t-zinc-950"
@@ -490,7 +501,7 @@ const ZoneCard: React.FC<{ zone: Zone; methods: MethodItem[]; onUpdate: (z: Zone
               <Input label="區域名稱 / NAME" value={zone.zoneName} onChange={e => onUpdate({ ...zone, zoneName: e.target.value })} />
               {/* Engineer Quick Tags */}
               <div className="flex flex-wrap gap-1.5">
-                {QUICK_TAGS.map(tag => (
+                {currentTags.map(tag => (
                   <button key={tag} onClick={() => onUpdate({ ...zone, zoneName: tag })} className="text-[9px] px-2 py-1 bg-zinc-50 border border-zinc-100 rounded-sm hover:bg-zinc-950 hover:text-white transition-colors">
                     {tag}
                   </button>
