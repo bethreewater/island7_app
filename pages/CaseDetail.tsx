@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
+import {
   Trash2, Plus, Calculator, FileCheck, Edit3,
   Layers, Calendar as CalendarIcon, Save,
-  Wand2, CheckCircle2, ChevronLeft, ChevronRight, MapPin, X, ChevronDown, ChevronUp, 
+  Wand2, CheckCircle2, ChevronLeft, ChevronRight, MapPin, X, ChevronDown, ChevronUp,
   Clock, Info, FileText, Camera, CloudRain, Sun, Cloud, History, FastForward, Coffee, AlertTriangle, Play, Square, Pause, SkipForward
 } from 'lucide-react';
 import { CaseData, Zone, ScheduleTask, MethodItem, ServiceCategory, ConstructionLog, BreakPeriod } from '../types';
@@ -14,10 +14,10 @@ import { Layout } from '../components/Layout';
 import { STANDARD_LOG_ACTIONS } from '../constants';
 
 // --- 施工日誌分頁 / CONSTRUCTION LOG TAB ---
-const ConstructionLogTab: React.FC<{ 
-  schedule: ScheduleTask[]; 
-  logs: ConstructionLog[]; 
-  onUpdate: (logs: ConstructionLog[], updatedSchedule?: ScheduleTask[]) => void 
+const ConstructionLogTab: React.FC<{
+  schedule: ScheduleTask[];
+  logs: ConstructionLog[];
+  onUpdate: (logs: ConstructionLog[], updatedSchedule?: ScheduleTask[]) => void
 }> = ({ schedule, logs, onUpdate }) => {
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
   const [logForm, setLogForm] = useState<Partial<ConstructionLog>>({});
@@ -71,16 +71,16 @@ const ConstructionLogTab: React.FC<{
 
   const handleSave = () => {
     if (!logForm.id) return;
-    
+
     const delay = Number(logForm.delayDays) || 0;
     const finalLog = logForm as ConstructionLog;
-    
+
     // 更新日誌清單
     const exists = logs.find(l => l.id === finalLog.id);
-    let newLogs = exists 
+    let newLogs = exists
       ? logs.map(l => l.id === finalLog.id ? finalLog : l)
       : [finalLog, ...logs];
-    
+
     // 若有延期，更新排程
     let updatedSchedule = undefined;
     if (delay > 0) {
@@ -154,23 +154,23 @@ const ConstructionLogTab: React.FC<{
           <div className="space-y-6">
             <div className="flex justify-between items-center border-b border-zinc-50 pb-4">
               <span className="text-lg font-black uppercase">現場打卡錄入 / SITE PUNCH-IN</span>
-              <button onClick={() => setEditingLogId(null)} className="text-zinc-300 hover:text-zinc-950"><X size={24}/></button>
+              <button onClick={() => setEditingLogId(null)} className="text-zinc-300 hover:text-zinc-950"><X size={24} /></button>
             </div>
 
             <div className="flex items-center gap-3 p-4 bg-amber-50 rounded-sm border border-amber-200">
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
                 id="isNoWorkDay"
                 className="w-5 h-5 accent-zinc-950 cursor-pointer"
                 checked={logForm.isNoWorkDay || false}
-                onChange={e => setLogForm({...logForm, isNoWorkDay: e.target.checked, action: e.target.checked ? '工期順延 (當日不施工)' : STANDARD_LOG_ACTIONS[0]})} 
+                onChange={e => setLogForm({ ...logForm, isNoWorkDay: e.target.checked, action: e.target.checked ? '工期順延 (當日不施工)' : STANDARD_LOG_ACTIONS[0] })}
               />
               <label htmlFor="isNoWorkDay" className="text-sm font-black text-amber-900 uppercase cursor-pointer">今日不施工 (僅紀錄工期順延) / SKIP WORK TODAY</label>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Input label="紀錄日期 / DATE" type="date" value={logForm.date} onChange={e => setLogForm({...logForm, date: e.target.value})} />
-              <Select label="現場天氣 / WEATHER" value={logForm.weather} onChange={e => setLogForm({...logForm, weather: e.target.value})}>
+              <Input label="紀錄日期 / DATE" type="date" value={logForm.date} onChange={e => setLogForm({ ...logForm, date: e.target.value })} />
+              <Select label="現場天氣 / WEATHER" value={logForm.weather} onChange={e => setLogForm({ ...logForm, weather: e.target.value })}>
                 <option value="晴天">晴天 / SUNNY</option>
                 <option value="多雲">多雲 / CLOUDY</option>
                 <option value="陰天">陰天 / OVERCAST</option>
@@ -178,10 +178,10 @@ const ConstructionLogTab: React.FC<{
               </Select>
               {logForm.isNoWorkDay ? (
                 <div className="bg-amber-100 p-2 rounded-sm ring-2 ring-amber-200">
-                   <Input label="順延天數 / DELAY DAYS" type="number" value={logForm.delayDays} onChange={e => setLogForm({...logForm, delayDays: parseInt(e.target.value) || 0})} />
+                  <Input label="順延天數 / DELAY DAYS" type="number" value={logForm.delayDays} onChange={e => setLogForm({ ...logForm, delayDays: parseInt(e.target.value) || 0 })} />
                 </div>
               ) : (
-                <Select label="施作工項 / ACTION" value={logForm.action} onChange={e => setLogForm({...logForm, action: e.target.value})}>
+                <Select label="施作工項 / ACTION" value={logForm.action} onChange={e => setLogForm({ ...logForm, action: e.target.value })}>
                   {STANDARD_LOG_ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
                 </Select>
               )}
@@ -191,37 +191,37 @@ const ConstructionLogTab: React.FC<{
               <>
                 <div className="bg-zinc-50 p-6 rounded-sm border border-zinc-100 space-y-4">
                   <div className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center justify-between">
-                    <div className="flex items-center gap-2"><Clock size={12}/> 按下按鈕完成打卡 (儲存後顯示具體時間)</div>
+                    <div className="flex items-center gap-2"><Clock size={12} /> 按下按鈕完成打卡 (儲存後顯示具體時間)</div>
                     {(logForm.breaks?.length || 0) > 0 && <div className="text-zinc-950">今日休息紀錄: {logForm.breaks?.length} 次</div>}
                   </div>
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <PunchButton 
-                      label="開始施工" 
-                      subLabel="START" 
-                      icon={<Play size={18}/>} 
-                      active={!!logForm.startTime} 
-                      onClick={() => setLogForm({...logForm, startTime: getCurrentTime()})} 
+                    <PunchButton
+                      label="開始施工"
+                      subLabel="START"
+                      icon={<Play size={18} />}
+                      active={!!logForm.startTime}
+                      onClick={() => setLogForm({ ...logForm, startTime: getCurrentTime() })}
                     />
-                    <PunchButton 
-                      label="休息開始" 
-                      subLabel="BREAK-S" 
-                      icon={<Pause size={18}/>} 
-                      active={isBreakActive} 
-                      onClick={handleBreakStart} 
+                    <PunchButton
+                      label="休息開始"
+                      subLabel="BREAK-S"
+                      icon={<Pause size={18} />}
+                      active={isBreakActive}
+                      onClick={handleBreakStart}
                     />
-                    <PunchButton 
-                      label="休息結束" 
-                      subLabel="BREAK-E" 
-                      icon={<SkipForward size={18}/>} 
-                      active={logForm.breaks?.length > 0 && !isBreakActive} 
-                      onClick={handleBreakEnd} 
+                    <PunchButton
+                      label="休息結束"
+                      subLabel="BREAK-E"
+                      icon={<SkipForward size={18} />}
+                      active={logForm.breaks?.length > 0 && !isBreakActive}
+                      onClick={handleBreakEnd}
                     />
-                    <PunchButton 
-                      label="完工結束" 
-                      subLabel="FINISH" 
-                      icon={<Square size={18}/>} 
-                      active={!!logForm.endTime} 
-                      onClick={() => setLogForm({...logForm, endTime: getCurrentTime()})} 
+                    <PunchButton
+                      label="完工結束"
+                      subLabel="FINISH"
+                      icon={<Square size={18} />}
+                      active={!!logForm.endTime}
+                      onClick={() => setLogForm({ ...logForm, endTime: getCurrentTime() })}
                     />
                   </div>
                 </div>
@@ -229,28 +229,28 @@ const ConstructionLogTab: React.FC<{
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">施工前拍照 / BEFORE</label>
-                    <ImageUploader images={logForm.beforePhotos || []} onImagesChange={imgs => setLogForm({...logForm, beforePhotos: imgs})} />
+                    <ImageUploader images={logForm.beforePhotos || []} onImagesChange={imgs => setLogForm({ ...logForm, beforePhotos: imgs })} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">施工後拍照 / AFTER</label>
-                    <ImageUploader images={logForm.afterPhotos || []} onImagesChange={imgs => setLogForm({...logForm, afterPhotos: imgs})} />
+                    <ImageUploader images={logForm.afterPhotos || []} onImagesChange={imgs => setLogForm({ ...logForm, afterPhotos: imgs })} />
                   </div>
                 </div>
               </>
             )}
 
             <div className="grid grid-cols-1 gap-4 items-end">
-                <Input 
-                  label="情況描述 / NOTES" 
-                  placeholder={logForm.isNoWorkDay ? "請在此輸入順延原因..." : "今日施作細節..."} 
-                  value={logForm.description} 
-                  onChange={e => setLogForm({...logForm, description: e.target.value})} 
-                />
+              <Input
+                label="情況描述 / NOTES"
+                placeholder={logForm.isNoWorkDay ? "請在此輸入順延原因..." : "今日施作細節..."}
+                value={logForm.description}
+                onChange={e => setLogForm({ ...logForm, description: e.target.value })}
+              />
             </div>
 
             <div className="flex gap-2 pt-4">
               <Button variant="outline" className="flex-1 py-4" onClick={() => setEditingLogId(null)}>放棄修改 / CANCEL</Button>
-              <Button className="flex-1 py-4" onClick={handleSave}><Save size={18}/> 儲存日誌內容 / SAVE</Button>
+              <Button className="flex-1 py-4" onClick={handleSave}><Save size={18} /> 儲存日誌內容 / SAVE</Button>
             </div>
           </div>
         </Card>
@@ -267,35 +267,35 @@ const ConstructionLogTab: React.FC<{
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="text-[10px] md:text-sm font-black bg-zinc-950 text-white px-2 py-0.5 rounded-sm">{log.date}</span>
                   <div className="flex items-center gap-1.5 text-[9px] font-black text-zinc-400 uppercase">
-                    {log.weather === '雨天' ? <CloudRain size={12}/> : log.weather === '陰天' ? <Cloud size={12}/> : <Sun size={12}/>} {log.weather}
+                    {log.weather === '雨天' ? <CloudRain size={12} /> : log.weather === '陰天' ? <Cloud size={12} /> : <Sun size={12} />} {log.weather}
                   </div>
                   {log.isNoWorkDay ? (
                     <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 border border-amber-200 rounded-sm">
-                       工期順延 (當日不施工) +{log.delayDays}
+                      工期順延 (當日不施工) +{log.delayDays}
                     </span>
                   ) : (
                     <div className="flex flex-wrap items-center gap-2">
-                       {log.startTime && (
-                         <div className="flex items-center gap-1.5 text-[9px] font-black text-zinc-600 bg-zinc-50 px-2 py-0.5 border border-zinc-100 rounded-sm">
-                           <Play size={10} className="text-zinc-400" /> {log.startTime}
-                         </div>
-                       )}
-                       {log.breaks?.map((b, bIdx) => (
-                         <div key={bIdx} className="flex items-center gap-1.5 text-[9px] font-black text-zinc-400 bg-zinc-50 px-2 py-0.5 border border-zinc-100 rounded-sm">
-                           <Coffee size={10} /> {b.start} - {b.end || '??'}
-                         </div>
-                       ))}
-                       {log.endTime && (
-                         <div className="flex items-center gap-1.5 text-[9px] font-black text-zinc-600 bg-zinc-50 px-2 py-0.5 border border-zinc-100 rounded-sm">
-                           <Square size={10} className="text-zinc-400" /> {log.endTime}
-                         </div>
-                       )}
+                      {log.startTime && (
+                        <div className="flex items-center gap-1.5 text-[9px] font-black text-zinc-600 bg-zinc-50 px-2 py-0.5 border border-zinc-100 rounded-sm">
+                          <Play size={10} className="text-zinc-400" /> {log.startTime}
+                        </div>
+                      )}
+                      {log.breaks?.map((b, bIdx) => (
+                        <div key={bIdx} className="flex items-center gap-1.5 text-[9px] font-black text-zinc-400 bg-zinc-50 px-2 py-0.5 border border-zinc-100 rounded-sm">
+                          <Coffee size={10} /> {b.start} - {b.end || '??'}
+                        </div>
+                      ))}
+                      {log.endTime && (
+                        <div className="flex items-center gap-1.5 text-[9px] font-black text-zinc-600 bg-zinc-50 px-2 py-0.5 border border-zinc-100 rounded-sm">
+                          <Square size={10} className="text-zinc-400" /> {log.endTime}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => startEdit(log)} className="text-zinc-300 hover:text-zinc-950 p-1"><Edit3 size={18}/></button>
-                  <button onClick={() => onUpdate(logs.filter(l => l.id !== log.id))} className="text-zinc-100 hover:text-red-500 p-1"><Trash2 size={18}/></button>
+                  <button onClick={() => startEdit(log)} className="text-zinc-300 hover:text-zinc-950 p-1"><Edit3 size={18} /></button>
+                  <button onClick={() => onUpdate(logs.filter(l => l.id !== log.id))} className="text-zinc-100 hover:text-red-500 p-1"><Trash2 size={18} /></button>
                 </div>
               </div>
 
@@ -323,7 +323,7 @@ const ConstructionLogTab: React.FC<{
 // --- 輔助小元件 / HELPER COMPONENTS ---
 
 const PunchButton = ({ label, subLabel, icon, active, onClick }: { label: string, subLabel: string, icon: React.ReactNode, active: boolean, onClick: () => void }) => (
-  <button 
+  <button
     onClick={onClick}
     className={`flex flex-col items-center justify-center py-4 px-2 rounded-sm border-2 transition-all active:scale-95 ${active ? 'bg-zinc-950 border-zinc-950 text-white shadow-lg' : 'bg-white border-zinc-100 text-zinc-300 hover:border-zinc-950 hover:text-zinc-950'}`}
   >
@@ -347,17 +347,17 @@ const PhotoGroup = ({ label, photos }: { label: string, photos: string[] }) => (
 const ProjectCalendar: React.FC<{ schedule: ScheduleTask[]; logs: ConstructionLog[] }> = ({ schedule, logs }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  
+
   const totalDelay = useMemo(() => logs.reduce((sum, log) => sum + (log.delayDays || 0), 0), [logs]);
 
   const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
-  
+
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const days = daysInMonth(year, month);
   const startDay = firstDayOfMonth(year, month);
-  
+
   const tasksByDate = useMemo(() => {
     const map: Record<string, ScheduleTask[]> = {};
     schedule.forEach(t => {
@@ -374,8 +374,8 @@ const ProjectCalendar: React.FC<{ schedule: ScheduleTask[]; logs: ConstructionLo
           <div className="bg-zinc-950 text-white p-4 flex justify-between items-center">
             <h3 className="font-black text-lg uppercase tracking-tight">{year} / {month + 1}月</h3>
             <div className="flex gap-2">
-              <button onClick={() => setCurrentDate(new Date(year, month - 1, 1))} className="p-1 hover:bg-white/10 rounded"><ChevronLeft size={20}/></button>
-              <button onClick={() => setCurrentDate(new Date(year, month + 1, 1))} className="p-1 hover:bg-white/10 rounded"><ChevronRight size={20}/></button>
+              <button onClick={() => setCurrentDate(new Date(year, month - 1, 1))} className="p-1 hover:bg-white/10 rounded"><ChevronLeft size={20} /></button>
+              <button onClick={() => setCurrentDate(new Date(year, month + 1, 1))} className="p-1 hover:bg-white/10 rounded"><ChevronRight size={20} /></button>
             </div>
           </div>
           <div className="grid grid-cols-7 border-b border-zinc-100 bg-zinc-50">
@@ -411,7 +411,7 @@ const ProjectCalendar: React.FC<{ schedule: ScheduleTask[]; logs: ConstructionLo
                   <span className="text-[10px] font-black text-zinc-300 uppercase">DAYS</span>
                 </div>
               </div>
-              
+
               {totalDelay > 0 && (
                 <div className="p-3 bg-amber-50 border border-amber-100 rounded-sm flex gap-3 items-start animate-pulse">
                   <AlertTriangle className="text-amber-600 shrink-0" size={16} />
@@ -426,7 +426,7 @@ const ProjectCalendar: React.FC<{ schedule: ScheduleTask[]; logs: ConstructionLo
               </p>
             </div>
           </Card>
-          
+
           {selectedDate && tasksByDate[selectedDate] && (
             <Card title={`${selectedDate} 任務`}>
               <div className="space-y-2">
@@ -462,31 +462,31 @@ const ZoneCard: React.FC<{ zone: Zone; methods: MethodItem[]; onUpdate: (z: Zone
   };
 
   return (
-    <Card className="border-t-4 border-t-zinc-950" 
+    <Card className="border-t-4 border-t-zinc-950"
       title={
         <div className="flex items-center gap-3">
-          <button onClick={() => setIsCollapsed(!isCollapsed)} className="p-1 border border-zinc-100 rounded-full">{isCollapsed ? <ChevronDown size={14}/> : <ChevronUp size={14}/>}</button>
+          <button onClick={() => setIsCollapsed(!isCollapsed)} className="p-1 border border-zinc-100 rounded-full">{isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}</button>
           <div className="flex flex-col">
             <span className="text-base font-black uppercase">{zone.zoneName || "未命名區域"}</span>
             <span className="text-[7px] text-zinc-300 uppercase tracking-widest">{zone.methodName || "未選工法"}</span>
           </div>
         </div>
       }
-      action={<button onClick={onDelete} className="text-zinc-200 hover:text-red-500"><Trash2 size={16}/></button>}
+      action={<button onClick={onDelete} className="text-zinc-200 hover:text-red-500"><Trash2 size={16} /></button>}
     >
       <div className={isCollapsed ? 'hidden' : 'space-y-6 animate-in fade-in duration-300'}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-           <Input label="區域名稱 / NAME" value={zone.zoneName} onChange={e => onUpdate({...zone, zoneName: e.target.value})} />
-           <Select label="服務大類 / CATEGORY" value={zone.category} onChange={e => onUpdate({...zone, category: e.target.value as ServiceCategory})}>
-              {Object.values(ServiceCategory).map(cat => <option key={cat} value={cat}>{cat}</option>)}
-           </Select>
+          <Input label="區域名稱 / NAME" value={zone.zoneName} onChange={e => onUpdate({ ...zone, zoneName: e.target.value })} />
+          <Select label="服務大類 / CATEGORY" value={zone.category} onChange={e => onUpdate({ ...zone, category: e.target.value as ServiceCategory })}>
+            {Object.values(ServiceCategory).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+          </Select>
         </div>
-        
+
         <div className="space-y-2">
           <label className="text-[8px] font-black text-zinc-400 uppercase tracking-widest">工法選擇 / METHOD</label>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             {filteredMethods.map(m => (
-              <button key={m.id} onClick={() => onUpdate({...zone, methodId: m.id, methodName: m.name, unit: m.defaultUnit, unitPrice: m.defaultUnitPrice})} className={`p-3 border rounded-sm text-left transition-all ${zone.methodId === m.id ? 'bg-zinc-950 text-white border-zinc-950' : 'bg-white border-zinc-100 hover:border-zinc-300'}`}>
+              <button key={m.id} onClick={() => onUpdate({ ...zone, methodId: m.id, methodName: m.name, unit: m.defaultUnit, unitPrice: m.defaultUnitPrice })} className={`p-3 border rounded-sm text-left transition-all ${zone.methodId === m.id ? 'bg-zinc-950 text-white border-zinc-950' : 'bg-white border-zinc-100 hover:border-zinc-300'}`}>
                 <div className="text-[11px] font-black leading-tight">{m.name}</div>
                 <div className="text-[7px] font-black uppercase opacity-40 mt-1">{m.englishName}</div>
               </button>
@@ -503,12 +503,12 @@ const ZoneCard: React.FC<{ zone: Zone; methods: MethodItem[]; onUpdate: (z: Zone
                 <Input label="寬 (cm) / W" type="number" value={item.width || ''} onChange={e => updateItem(iIdx, 'width', parseFloat(e.target.value) || 0)} />
               </div>
               <div className="flex justify-between items-end">
-                 <div className="text-xl font-black text-zinc-950">{item.areaPing} <span className="text-[10px] text-zinc-400 uppercase ml-1">PING</span></div>
-                 <ImageUploader images={item.photos} onImagesChange={imgs => updateItem(iIdx, 'photos', imgs)} maxImages={3} />
+                <div className="text-xl font-black text-zinc-950">{item.areaPing} <span className="text-[10px] text-zinc-400 uppercase ml-1">PING</span></div>
+                <ImageUploader images={item.photos} onImagesChange={imgs => updateItem(iIdx, 'photos', imgs)} maxImages={3} />
               </div>
             </div>
           ))}
-          <Button onClick={() => onUpdate({...zone, items: [...zone.items, { itemId: `I-${Date.now()}`, length: 0, width: 0, areaPing: 0, quantity: 1, itemPrice: zone.unitPrice, photos: [] }]})} variant="outline" className="w-full text-[9px]"><Plus size={14}/> 新增測量項 / ADD ITEM</Button>
+          <Button onClick={() => onUpdate({ ...zone, items: [...zone.items, { itemId: `I-${Date.now()}`, length: 0, width: 0, areaPing: 0, quantity: 1, itemPrice: zone.unitPrice, photos: [] }] })} variant="outline" className="w-full text-[9px]"><Plus size={14} /> 新增測量項 / ADD ITEM</Button>
         </div>
       </div>
     </Card>
@@ -521,15 +521,40 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
   const [localData, setLocalData] = useState<CaseData>(caseData);
   const [methods, setMethods] = useState<MethodItem[]>([]);
 
-  useEffect(() => { 
+  // Ref to track if the update originated from this component
+  const isSelfUpdate = React.useRef(false);
+  // Ref for debounce timer
+  const saveTimer = React.useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    // Only update local state from props if it's NOT a self-triggered update
+    // ensuring we don't overwrite user input during the debounce cycle
+    if (isSelfUpdate.current) {
+      isSelfUpdate.current = false;
+      return;
+    }
     setLocalData(caseData);
     getMethods().then(setMethods);
   }, [caseData]);
 
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, []);
+
   const handleUpdate = async (newData: CaseData) => {
     setLocalData(newData);
-    await saveCase(newData);
-    onUpdate(newData);
+    isSelfUpdate.current = true;
+
+    // Debounce the heavy save operation and parent update
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+
+    saveTimer.current = setTimeout(async () => {
+      await saveCase(newData);
+      onUpdate(newData);
+    }, 1000); // 1 second debounce
   };
 
   const calculatedTotal = useMemo(() => localData.zones.reduce((sum, zone) => sum + zone.items.reduce((zSum, item) => zSum + item.itemPrice, 0), 0), [localData.zones]);
@@ -542,7 +567,7 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
       if (!method) return;
       method.steps.forEach((step, sIdx) => {
         const taskDate = new Date(baseDate);
-        taskDate.setDate(taskDate.getDate() + sIdx); 
+        taskDate.setDate(taskDate.getDate() + sIdx);
         newSchedule.push({ taskId: `${zone.zoneId}-${sIdx}`, date: taskDate.toISOString().slice(0, 10), zoneName: zone.zoneName, taskName: step.name, isCompleted: false });
       });
     });
@@ -564,28 +589,28 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
           <div className="space-y-6 animate-in fade-in duration-300">
             <div className="flex justify-between items-end">
               <div>
-                 <h2 className="text-[8px] font-black uppercase text-zinc-400 mb-0.5 leading-none">Job Setup</h2>
-                 <div className="text-xl font-black text-zinc-950 uppercase leading-none">區域配置 / ZONES</div>
+                <h2 className="text-[8px] font-black uppercase text-zinc-400 mb-0.5 leading-none">Job Setup</h2>
+                <div className="text-xl font-black text-zinc-950 uppercase leading-none">區域配置 / ZONES</div>
               </div>
-              <Button onClick={() => handleUpdate({...localData, zones: [...localData.zones, { zoneId: `Z-${Date.now()}`, zoneName: '新區域', category: ServiceCategory.WALL_CANCER, methodId: '', methodName: '', unit: '坪', unitPrice: 0, difficultyCoefficient: 1, items: [] }]})}><Plus size={14}/> 新增區域 / ADD</Button>
+              <Button onClick={() => handleUpdate({ ...localData, zones: [...localData.zones, { zoneId: `Z-${Date.now()}`, zoneName: '新區域', category: ServiceCategory.WALL_CANCER, methodId: '', methodName: '', unit: '坪', unitPrice: 0, difficultyCoefficient: 1, items: [] }] })}><Plus size={14} /> 新增區域 / ADD</Button>
             </div>
             {localData.zones.map((zone, zIdx) => (
-              <ZoneCard key={zone.zoneId} zone={zone} methods={methods} onUpdate={uz => { const nz = [...localData.zones]; nz[zIdx] = uz; handleUpdate({...localData, zones: nz}); }} onDelete={() => handleUpdate({...localData, zones: localData.zones.filter((_, i) => i !== zIdx)})} />
+              <ZoneCard key={zone.zoneId} zone={zone} methods={methods} onUpdate={uz => { const nz = [...localData.zones]; nz[zIdx] = uz; handleUpdate({ ...localData, zones: nz }); }} onDelete={() => handleUpdate({ ...localData, zones: localData.zones.filter((_, i) => i !== zIdx) })} />
             ))}
           </div>
         )}
 
         {activeTab === 'log' && (
-          <ConstructionLogTab 
-            schedule={localData.schedule} 
-            logs={localData.logs || []} 
+          <ConstructionLogTab
+            schedule={localData.schedule}
+            logs={localData.logs || []}
             onUpdate={(newLogs, updatedSchedule) => {
               const newData = { ...localData, logs: newLogs };
               if (updatedSchedule) {
                 newData.schedule = updatedSchedule;
               }
               handleUpdate(newData);
-            }} 
+            }}
           />
         )}
 
@@ -593,13 +618,13 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
           <div className="space-y-8 animate-in fade-in slide-in-from-right duration-300">
             <Card title="自動排程引擎 / AUTO SCHEDULER">
               <div className="space-y-4">
-                <Input label="開工預定日 / START DATE" type="date" value={localData.startDate || ''} onChange={e => handleUpdate({...localData, startDate: e.target.value})} />
-                <Button onClick={generateAutoSchedule} className="w-full py-3"><Wand2 size={18}/> 生成自動排程 / GENERATE</Button>
+                <Input label="開工預定日 / START DATE" type="date" value={localData.startDate || ''} onChange={e => handleUpdate({ ...localData, startDate: e.target.value })} />
+                <Button onClick={generateAutoSchedule} className="w-full py-3"><Wand2 size={18} /> 生成自動排程 / GENERATE</Button>
               </div>
             </Card>
-            <ProjectCalendar 
-              schedule={localData.schedule} 
-              logs={localData.logs || []} 
+            <ProjectCalendar
+              schedule={localData.schedule}
+              logs={localData.logs || []}
             />
           </div>
         )}
@@ -612,7 +637,7 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
                   <span>BASE VALUATION / 系統估值</span>
                   <span className="text-zinc-950 text-sm font-black">${calculatedTotal.toLocaleString()}</span>
                 </div>
-                <Input label="手動調整 (折讓或補償) / ADJUSTMENT" type="number" value={localData.manualPriceAdjustment || ''} onChange={e => handleUpdate({...localData, manualPriceAdjustment: parseInt(e.target.value) || 0})} />
+                <Input label="手動調整 (折讓或補償) / ADJUSTMENT" type="number" value={localData.manualPriceAdjustment || ''} onChange={e => handleUpdate({ ...localData, manualPriceAdjustment: parseInt(e.target.value) || 0 })} />
                 <div className="flex justify-between items-center pt-6 border-t border-zinc-950">
                   <div className="text-[10px] font-black text-zinc-400 uppercase">FINAL PRICE / 總報價</div>
                   <span className="text-3xl font-black text-zinc-950">${(calculatedTotal + localData.manualPriceAdjustment).toLocaleString()}</span>
@@ -620,9 +645,9 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
               </div>
             </Card>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Button onClick={() => generateEvaluationPDF(localData)} variant="outline" className="h-16 border-zinc-200"><Layers size={20}/> 現勘報告 / EVAL</Button>
-              <Button onClick={() => generateContractPDF(localData)} variant="outline" className="h-16 border-zinc-200"><FileCheck size={20}/> 合約文件 / CONTRACT</Button>
-              <Button onClick={() => generateInvoicePDF(localData)} variant="outline" className="h-16 border-zinc-200"><Calculator size={20}/> 報價清單 / QUOTE</Button>
+              <Button onClick={() => generateEvaluationPDF(localData)} variant="outline" className="h-16 border-zinc-200"><Layers size={20} /> 現勘報告 / EVAL</Button>
+              <Button onClick={() => generateContractPDF(localData)} variant="outline" className="h-16 border-zinc-200"><FileCheck size={20} /> 合約文件 / CONTRACT</Button>
+              <Button onClick={() => generateInvoicePDF(localData)} variant="outline" className="h-16 border-zinc-200"><Calculator size={20} /> 報價清單 / QUOTE</Button>
             </div>
           </div>
         )}
@@ -630,8 +655,8 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
 
       <div className="fixed bottom-0 left-0 w-full bg-white border-t border-zinc-950 p-4 z-50 md:max-w-7xl md:mx-auto flex justify-between items-center gap-4">
         <div className="flex flex-col">
-            <div className="text-[7px] text-zinc-400 font-black uppercase tracking-widest leading-none mb-1">FINAL TOTAL / 結算</div>
-            <div className="font-black text-xl text-zinc-950 leading-none">${(calculatedTotal + localData.manualPriceAdjustment).toLocaleString()}</div>
+          <div className="text-[7px] text-zinc-400 font-black uppercase tracking-widest leading-none mb-1">FINAL TOTAL / 結算</div>
+          <div className="font-black text-xl text-zinc-950 leading-none">${(calculatedTotal + localData.manualPriceAdjustment).toLocaleString()}</div>
         </div>
         <button onClick={onBack} className="flex-1 py-3 px-6 text-[11px] font-black bg-zinc-950 text-white rounded-sm uppercase active:scale-95 shadow-lg">儲存並返回 / SAVE & EXIT</button>
       </div>
@@ -643,8 +668,8 @@ const TabButton: React.FC<{ active: boolean; onClick: () => void; icon: React.Re
   <button onClick={onClick} className={`flex-1 py-3 px-2 flex flex-col items-center border-b-2 transition-all relative ${active ? 'border-zinc-950 text-zinc-950 bg-white' : 'border-transparent text-zinc-300'}`}>
     <div className={`transition-transform mb-1 ${active ? 'scale-110' : 'scale-90 opacity-40'}`}>{icon}</div>
     <div className="flex flex-col leading-none">
-       <span className="text-[9px] font-black uppercase tracking-tighter whitespace-nowrap">{label.split(' / ')[0]}</span>
-       <span className="text-[6px] font-black uppercase opacity-40 tracking-widest mt-0.5">{label.split(' / ')[1]}</span>
+      <span className="text-[9px] font-black uppercase tracking-tighter whitespace-nowrap">{label.split(' / ')[0]}</span>
+      <span className="text-[6px] font-black uppercase opacity-40 tracking-widest mt-0.5">{label.split(' / ')[1]}</span>
     </div>
     {active && <div className="absolute top-0 left-0 w-full h-0.5 bg-zinc-950"></div>}
   </button>
