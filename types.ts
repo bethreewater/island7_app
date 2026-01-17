@@ -1,10 +1,33 @@
 
+
 export enum CaseStatus {
+  // New Stages
+  ASSESSMENT = 'assessment',        // 現場評估 (初始)
+  DEPOSIT_RECEIVED = 'deposit',     // 收到訂金
+  PLANNING = 'planning',            // 行程規劃/備料
+  CONSTRUCTION = 'construction',    // 施工中
+  FINAL_PAYMENT = 'final_payment',  // 請領尾款
+  COMPLETED = 'completed',          // 完工驗收
+  WARRANTY = 'warranty',            // 保固期
+
+  // Legacy (Mapped for compatibility)
   NEW = 'new',
   PROGRESS = 'progress',
-  DONE = 'done',
-  WARRANTY = 'warranty'
+  DONE = 'done'
 }
+
+export const STATUS_LABELS: Record<CaseStatus | string, string> = {
+  [CaseStatus.ASSESSMENT]: '現場評估',
+  [CaseStatus.DEPOSIT_RECEIVED]: '收到訂金',
+  [CaseStatus.PLANNING]: '行程規劃',
+  [CaseStatus.CONSTRUCTION]: '施工中',
+  [CaseStatus.FINAL_PAYMENT]: '請領尾款',
+  [CaseStatus.COMPLETED]: '完工驗收',
+  [CaseStatus.WARRANTY]: '保固期',
+  [CaseStatus.NEW]: '現場評估',
+  [CaseStatus.PROGRESS]: '施工中',
+  [CaseStatus.DONE]: '完工驗收'
+};
 
 export enum ServiceCategory {
   WALL_CANCER = '一般壁癌修繕',
@@ -20,8 +43,8 @@ export enum ServiceCategory {
 export interface MethodStep {
   name: string;
   description: string;
-  prepMinutes: number; 
-  execMinutes: number; 
+  prepMinutes: number;
+  execMinutes: number;
 }
 
 export interface MethodItem {
@@ -57,7 +80,7 @@ export interface ConstructionLog {
   description: string;
   beforePhotos: string[];
   afterPhotos: string[];
-  photos?: string[];      
+  photos?: string[];
   startTime?: string;
   breaks?: BreakPeriod[];  // 更新：支援多次休息紀錄
   endTime?: string;
@@ -106,4 +129,26 @@ export interface CaseData {
   logs: ConstructionLog[];
   warrantyRecords: any[];
   changeOrders: any[];
+}
+
+export interface Material {
+  id: string;
+  name: string;
+  brand: string;
+  unit: string;
+  unitPrice: number;
+  costPerVal: number;
+  updatedAt?: string;
+}
+
+export interface MethodRecipe {
+  id: string;
+  methodId: string;
+  materialId: string;
+  quantity: number; // Base Qty
+  category: 'fixed' | 'variable';
+  consumptionRate: number; // Qty per Ping
+  note?: string;
+  // Joins
+  material?: Material;
 }

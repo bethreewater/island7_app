@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { CaseData, CaseStatus, MethodItem } from '../types';
+import { CaseData, CaseStatus, MethodItem, Material, MethodRecipe } from '../types';
 import { METHOD_CATALOG } from '../constants';
 
 const LOCAL_STORAGE_KEY = 'ISLAND7_CASES_V1';
@@ -43,6 +43,55 @@ export const subscribeToCases = (callback: () => void) => {
       }
     )
     .subscribe();
+};
+
+
+export const getMaterials = async (): Promise<Material[]> => {
+  const { data, error } = await supabase.from('materials').select('*');
+  if (error) console.error('Error fetching materials:', error);
+  return data || [];
+};
+
+export const getRecipes = async (): Promise<MethodRecipe[]> => {
+  const { data, error } = await supabase.from('method_recipes').select('*, material:materials(*)');
+  if (error) console.error('Error fetching recipes:', error);
+  return data || [];
+};
+
+
+export const upsertMaterial = async (material: Material): Promise<void> => {
+  const { error } = await supabase.from('materials').upsert(material);
+  if (error) {
+    console.error('Error saving material:', error);
+    throw error;
+  }
+};
+
+export const deleteMaterial = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('materials').delete().eq('id', id);
+  if (error) {
+    console.error('Error deleting material:', error);
+    throw error;
+  }
+};
+
+
+export const upsertRecipe = async (recipe: MethodRecipe): Promise<void> => {
+  // Remove join fields before saving
+  const { material, ...cleanRecipe } = recipe;
+  const { error } = await supabase.from('method_recipes').upsert(cleanRecipe);
+  if (error) {
+    console.error('Error saving recipe:', error);
+    throw error;
+  }
+};
+
+export const deleteRecipe = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('method_recipes').delete().eq('id', id);
+  if (error) {
+    console.error('Error deleting recipe:', error);
+    throw error;
+  }
 };
 
 export const saveCase = async (newCase: CaseData): Promise<void> => {

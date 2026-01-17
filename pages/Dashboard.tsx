@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Search, FolderOpen, TrendingUp, AlertCircle, CheckCircle2, ArrowRight, Book, X, User, Phone, MessageSquare, MapPin, Trash2, Edit } from 'lucide-react';
-import { CaseData, CaseStatus } from '../types';
+import { CaseData, CaseStatus, STATUS_LABELS } from '../types';
 import { getCases, getInitialCase, saveCase, deleteCase, initDB, subscribeToCases } from '../services/storageService';
 import { Button, Card, Input } from '../components/InputComponents';
 import { Layout } from '../components/Layout';
@@ -14,6 +14,7 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB, onNavigate }) => {
   const [cases, setCases] = useState<CaseData[]>([]);
+  // ... (keep state)
   const [searchTerm, setSearchTerm] = useState('');
   const [showNewModal, setShowNewModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -26,6 +27,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB, on
   const [newAddress, setNewAddress] = useState('');
 
   useEffect(() => {
+    // ... (keep useEffect)
     const loadData = async () => {
       try {
         setError(null);
@@ -41,7 +43,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB, on
     };
     loadData();
 
-    // 訂閱即時更新
     const subscription = subscribeToCases(() => {
       loadData();
     });
@@ -51,20 +52,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB, on
     };
   }, []);
 
-  const stats = useMemo(() => ({
-    total: cases.length,
-    progress: cases.filter(c => c.status === CaseStatus.PROGRESS).length,
-    done: cases.filter(c => c.status === CaseStatus.DONE).length,
-    revenue: cases.reduce((sum, c) => sum + (c.finalPrice || 0), 0)
-  }), [cases]);
+  const stats = useMemo(() => {
+    const activeStatuses = [CaseStatus.DEPOSIT_RECEIVED, CaseStatus.PLANNING, CaseStatus.CONSTRUCTION, CaseStatus.FINAL_PAYMENT, CaseStatus.PROGRESS];
+    const doneStatuses = [CaseStatus.COMPLETED, CaseStatus.WARRANTY, CaseStatus.DONE];
 
+    return {
+      total: cases.length,
+      progress: cases.filter(c => activeStatuses.includes(c.status as CaseStatus)).length,
+      done: cases.filter(c => doneStatuses.includes(c.status as CaseStatus)).length,
+      revenue: cases.reduce((sum, c) => sum + (c.finalPrice || 0), 0)
+    };
+  }, [cases]);
+
+  // ... (keep handleSave)
   const handleSave = async () => {
+    // ... (Keep existing handleSave implementation logic exactly, assume no changes needed inside)
     if (!newClient) return;
     try {
       let caseToSave: CaseData;
 
       if (editingCaseId) {
-        // Edit Mode
         const existingCase = cases.find(c => c.caseId === editingCaseId);
         if (!existingCase) throw new Error("Case not found");
 
@@ -76,13 +83,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB, on
           address: newAddress,
         };
       } else {
-        // Create Mode
         caseToSave = await getInitialCase(newClient, newPhone, newAddress, newLineId);
       }
 
       await saveCase(caseToSave);
 
-      // If creating, navigate to it. If editing, just close modal.
       if (!editingCaseId) {
         onSelectCase(caseToSave);
       }
@@ -97,6 +102,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB, on
       alert("儲存失敗: " + (e.message || "未知錯誤"));
     }
   };
+
 
   const handleEdit = (c: CaseData, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click
@@ -223,15 +229,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB, on
                   <div className="flex items-center gap-2 mb-0.5 whitespace-nowrap overflow-hidden">
                     <span className="font-black text-sm md:text-lg tracking-tight text-zinc-950 uppercase truncate">{c.customerName}</span>
                     {/* Status Badge */}
-                    <span className={`text-[8px] md:text-[10px] px-2 py-0.5 rounded-sm border uppercase font-black tracking-widest ${c.status === CaseStatus.NEW ? 'bg-zinc-950 text-white border-zinc-950' :
-                        c.status === CaseStatus.PROGRESS ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                          c.status === CaseStatus.WARRANTY ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                            'bg-zinc-50 text-zinc-400 border-zinc-100'
+                    <span className={`text-[8px] md:text-[10px] px-2 py-0.5 rounded-sm border uppercase font-black tracking-widest ${[CaseStatus.DEPOSIT_RECEIVED, CaseStatus.PLANNING, CaseStatus.CONSTRUCTION, CaseStatus.FINAL_PAYMENT, CaseStatus.PROGRESS].includes(c.status as CaseStatus) ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                      [CaseStatus.COMPLETED, CaseStatus.DONE].includes(c.status as CaseStatus) ? 'bg-zinc-100 text-zinc-500 border-zinc-200' :
+                        c.status === CaseStatus.WARRANTY ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          'bg-zinc-950 text-white border-zinc-950'
                       }`}>
-                      {c.status === CaseStatus.NEW ? '新案 / NEW' :
-                        c.status === CaseStatus.PROGRESS ? '施工 / RUN' :
-                          c.status === CaseStatus.WARRANTY ? '保固 / WRTY' :
-                            '完工 / DONE'}
+                      {STATUS_LABELS[c.status] || (c.status as string).toUpperCase()}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-[8px] md:text-[10px] font-black text-zinc-300 tracking-tight whitespace-nowrap opacity-60">

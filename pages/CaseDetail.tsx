@@ -6,8 +6,8 @@ import {
   Wand2, CheckCircle2, ChevronLeft, ChevronRight, MapPin, X, ChevronDown, ChevronUp,
   Clock, Info, FileText, Camera, CloudRain, Sun, Cloud, History, FastForward, Coffee, AlertTriangle, Play, Square, Pause, SkipForward, ShieldCheck, Eye
 } from 'lucide-react';
-import { CaseData, Zone, ScheduleTask, MethodItem, ServiceCategory, ConstructionLog, BreakPeriod } from '../types';
-import { getMethods, saveCase } from '../services/storageService';
+import { CaseData, Zone, ScheduleTask, MethodItem, ServiceCategory, ConstructionLog, BreakPeriod, CaseStatus, STATUS_LABELS, MethodRecipe } from '../types';
+import { getMethods, saveCase, getRecipes, getMaterials } from '../services/storageService';
 import { generateContractPDF, generateEvaluationPDF, generateInvoicePDF } from '../services/pdfService';
 import { Button, Card, Input, ImageUploader, Select } from '../components/InputComponents';
 import { Layout } from '../components/Layout';
@@ -50,6 +50,97 @@ const ExportButton: React.FC<{ onClick: () => Promise<void>; icon: React.ReactNo
       {loading ? <div className="animate-spin mr-2"><Wand2 size={20} /></div> : <span className="mr-2">{icon}</span>}
       {loading ? 'GENERATING...' : label}
     </Button>
+  );
+};
+
+const MaterialList: React.FC<{ zones: Zone[] }> = ({ zones }) => {
+  const [recipes, setRecipes] = useState<MethodRecipe[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      const data = await getRecipes();
+      setRecipes(data);
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  const requirements = useMemo(() => {
+    const totals: Record<string, { name: string, unit: string, qty: number, category: string, cost: number }> = {};
+
+    zones.forEach(zone => {
+      const zoneRecipes = recipes.filter(r => r.methodId === zone.methodId);
+      const zoneArea = zone.items.reduce((sum, item) => sum + (item.areaPing || 0), 0) || 1;
+
+      zoneRecipes.forEach(recipe => {
+        const mat = recipe.material;
+        if (!mat) return;
+
+        if (!totals[mat.id]) {
+          totals[mat.id] = { name: mat.name, unit: mat.unit, qty: 0, category: recipe.category, cost: 0 };
+        }
+
+        if (recipe.category === 'fixed') {
+          // Fixed items (Tools) are calculated per Project (Max of any usage), not per Zone
+          const needed = recipe.quantity || 1;
+          if (needed > totals[mat.id].qty) {
+            totals[mat.id].qty = needed;
+            totals[mat.id].cost = needed * (mat.unitPrice || 0);
+          }
+        } else {
+          // Variable items are summed up based on Area
+          const amount = (recipe.consumptionRate || 0) * zoneArea;
+          totals[mat.id].qty += amount;
+          totals[mat.id].cost += amount * (mat.unitPrice || 0);
+        }
+      });
+    });
+
+    return Object.values(totals).sort((a, b) => a.category === 'fixed' ? 1 : -1);
+  }, [zones, recipes]);
+
+  if (loading) return <div className="text-center py-4 text-xs text-zinc-400">Loading materials...</div>;
+
+  if (requirements.length === 0) return (
+    <div className="text-center py-8 border border-dashed border-zinc-200 rounded-sm bg-zinc-50">
+      <div className="text-zinc-400 text-xs">尚無備料資料 (請確認工法是否對應) / NO DATA</div>
+    </div>
+  );
+
+  const totalCost = requirements.reduce((sum, r) => sum + r.cost, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-end">
+        <div className="text-xs font-black uppercase text-zinc-400">ESTIMATED MATERIALS / 預估用料</div>
+        <div className="text-sm font-black">預估成本: ${Math.round(totalCost).toLocaleString()}</div>
+      </div>
+      <div className="border border-zinc-100 rounded-sm overflow-hidden">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-zinc-50 text-[10px] uppercase font-black text-zinc-400">
+            <tr>
+              <th className="p-3">材料 / NAME</th>
+              <th className="p-3">類別 / TYPE</th>
+              <th className="p-3 text-right">數量 / QTY</th>
+              <th className="p-3 text-right">成本 / COST</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-100">
+            {requirements.map((req, idx) => (
+              <tr key={idx} className="bg-white hover:bg-zinc-50/50">
+                <td className="p-3 font-bold text-zinc-700">{req.name}</td>
+                <td className="p-3 text-[10px] uppercase text-zinc-400">{req.category === 'fixed' ? '工具 (TOOL)' : '耗材 (MAT)'}</td>
+                <td className="p-3 text-right font-mono text-zinc-600">
+                  {req.qty > 0 && req.qty < 1 ? req.qty.toFixed(2) : Math.ceil(req.qty)} <span className="text-[10px] text-zinc-300 ml-1">{req.unit}</span>
+                </td>
+                <td className="p-3 text-right font-mono text-zinc-400">${Math.round(req.cost).toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 };
 
@@ -682,11 +773,87 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
     alert("排程已根據工法步驟自動產出。");
   };
 
+
+  const STATUS_ORDER = [
+    CaseStatus.ASSESSMENT,
+    CaseStatus.DEPOSIT_RECEIVED,
+    CaseStatus.PLANNING,
+    CaseStatus.CONSTRUCTION,
+    CaseStatus.FINAL_PAYMENT,
+    CaseStatus.COMPLETED,
+    CaseStatus.WARRANTY
+  ];
+
+  const CaseStatusStepper: React.FC<{ currentStatus: CaseStatus; onSetStatus: (s: CaseStatus) => void }> = ({ currentStatus, onSetStatus }) => {
+    const currentIndex = STATUS_ORDER.indexOf(currentStatus as CaseStatus);
+    const safeIndex = currentIndex === -1 ? 0 : currentIndex;
+
+    const getNextAction = () => {
+      switch (currentStatus) {
+        case CaseStatus.ASSESSMENT: return "請確認報價並收取訂金";
+        case CaseStatus.DEPOSIT_RECEIVED: return "請開始規劃行程與備料";
+        case CaseStatus.PLANNING: return "準備進場施工";
+        case CaseStatus.CONSTRUCTION: return "施工至期中，請申請尾款";
+        case CaseStatus.FINAL_PAYMENT: return "尾款確認後繼續完工";
+        case CaseStatus.COMPLETED: return "進入保固服務期";
+        case CaseStatus.WARRANTY: return "案件已結案";
+        default: return "";
+      }
+    };
+
+    return (
+      <div className="mb-6 bg-white border border-zinc-100 p-4 rounded-sm shadow-sm space-y-4">
+        <div className="flex justify-between items-center overflow-x-auto no-scrollbar gap-2">
+          {STATUS_ORDER.map((step, idx) => {
+            const isActive = idx === safeIndex;
+            const isDone = idx < safeIndex;
+            return (
+              <div key={step} className="flex items-center shrink-0">
+                <div
+                  onClick={() => onSetStatus(step)}
+                  className={`flex flex-col items-center cursor-pointer transition-all ${isActive ? 'opacity-100 scale-105' : isDone ? 'opacity-60 hover:opacity-100' : 'opacity-30 hover:opacity-60'}`}
+                >
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black border mb-1.5 ${isActive ? 'bg-zinc-950 text-white border-zinc-950' :
+                    isDone ? 'bg-emerald-500 text-white border-emerald-500' :
+                      'bg-white text-zinc-300 border-zinc-200'
+                    }`}>
+                    {isDone ? <CheckCircle2 size={12} /> : idx + 1}
+                  </div>
+                  <div className="text-[9px] font-black uppercase whitespace-nowrap">{STATUS_LABELS[step]}</div>
+                </div>
+                {idx < STATUS_ORDER.length - 1 && (
+                  <div className={`w-8 h-0.5 mx-2 ${isDone ? 'bg-emerald-200' : 'bg-zinc-100'}`}></div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center justify-between text-[11px] bg-zinc-50 p-2 rounded-sm border border-zinc-100">
+          <div className="font-bold text-zinc-500">
+            <span className="bg-zinc-200 text-zinc-600 px-1.5 py-0.5 rounded-xs mr-2 text-[9px] uppercase font-black">NEXT</span>
+            {getNextAction()}
+          </div>
+          {safeIndex < STATUS_ORDER.length - 1 && (
+            <Button onClick={() => onSetStatus(STATUS_ORDER[safeIndex + 1])} className="h-6 py-0 px-3 text-[9px]">
+              進入下一階段 <ChevronRight size={10} className="ml-1" />
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Layout title={localData.customerName} onBack={onBack}>
+      <div className="max-w-7xl mx-auto px-0 md:px-0 pt-2 mb-2">
+        <CaseStatusStepper currentStatus={localData.status} onSetStatus={(s) => handleUpdate({ ...localData, status: s })} />
+      </div>
+
       <div className="flex border-b border-zinc-100 mb-6 sticky top-16 md:top-28 bg-[#fcfcfc]/90 backdrop-blur-md z-40 shadow-sm overflow-x-auto no-scrollbar">
         <TabButton active={activeTab === 'eval'} onClick={() => setActiveTab('eval')} icon={<Calculator size={16} />} label="現場評估 / EVAL" />
         <TabButton active={activeTab === 'quote'} onClick={() => setActiveTab('quote')} icon={<FileCheck size={16} />} label="報價結算 / QUOTE" />
+        <TabButton active={activeTab === 'mats'} onClick={() => setActiveTab('mats')} icon={<Layers size={16} />} label="備料清單 / MATERIALS" />
         <TabButton active={activeTab === 'schedule'} onClick={() => setActiveTab('schedule')} icon={<CalendarIcon size={16} />} label="工期管理 / SCHEDULE" />
         <TabButton active={activeTab === 'log'} onClick={() => setActiveTab('log')} icon={<FileText size={16} />} label="施工日誌 / LOG" />
         <TabButton active={activeTab === 'warranty'} onClick={() => setActiveTab('warranty')} icon={<ShieldCheck size={16} />} label="保固服務 / WARRANTY" />
@@ -762,7 +929,35 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
           </div>
         )}
 
-        {/* TAB 3: SCHEDULE */}
+        {/* TAB 3: MATERIALS (New Dedicated Tab) */}
+        {activeTab === 'mats' && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-right duration-300">
+            <div className="flex justify-between items-end">
+              <div>
+                <h2 className="text-[8px] font-black uppercase text-zinc-400 mb-0.5 leading-none">Preparation</h2>
+                <div className="text-xl font-black text-zinc-950 uppercase leading-none">備料清單 / MATERIALS</div>
+              </div>
+            </div>
+
+            <Card title="自動備料試算 / MATERIAL CALCULATOR">
+              <MaterialList zones={localData.zones} />
+            </Card>
+
+            <div className="bg-zinc-50 p-4 rounded-sm border border-zinc-100">
+              <div className="flex items-start gap-3">
+                <Info size={16} className="text-zinc-400 mt-0.5" />
+                <p className="text-[10px] text-zinc-400 leading-relaxed">
+                  系統根據「各區域 (Zone)」選擇的「工法 (Method)」自動計算所需材料總量。<br />
+                  計算公式：<br />
+                  • 固定器材 (Fixed) = 1 Set per Recipe Use (不隨坪數增加)<br />
+                  • 變動耗材 (Variable) = 單坪消耗率 × 區域總坪數
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: SCHEDULE */}
         {activeTab === 'schedule' && (
           <div className="space-y-8 animate-in fade-in slide-in-from-right duration-300">
             <Card title="自動排程引擎 / AUTO SCHEDULER">
@@ -771,6 +966,9 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
                 <Button onClick={generateAutoSchedule} className="w-full py-3"><Wand2 size={18} /> 生成自動排程 / GENERATE</Button>
               </div>
             </Card>
+
+            {/* Material List Removed from here */}
+
             <ProjectCalendar
               schedule={localData.schedule}
               logs={localData.logs || []}
@@ -778,7 +976,7 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
           </div>
         )}
 
-        {/* TAB 4: LOG */}
+        {/* TAB 5: LOG */}
         {activeTab === 'log' && (
           <ConstructionLogTab
             schedule={localData.schedule}
@@ -793,7 +991,7 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
           />
         )}
 
-        {/* TAB 5: WARRANTY (New) */}
+        {/* TAB 6: WARRANTY */}
         {activeTab === 'warranty' && (
           <div className="space-y-8 animate-in fade-in slide-in-from-right duration-300">
             <Card title="保固紀錄 / WARRANTY RECORD">

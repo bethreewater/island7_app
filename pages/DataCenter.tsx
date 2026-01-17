@@ -82,69 +82,73 @@ export const DataCenter: React.FC<DataCenterProps> = ({ onNavigate }) => {
             onNavigate={onNavigate}
             currentView="datacenter"
         >
-            <div className="space-y-8 animate-in fade-in duration-500">
-
-                {/* KPI Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <MetricCard icon={<Users size={20} />} label="總案件數 / TOTAL CASES" value={metrics.totalCases} subtext="Lifetime" />
-                    <MetricCard icon={<TrendingUp size={20} />} label="預估總營收 / REVENUE" value={`$${metrics.totalRevenue.toLocaleString()}`} subtext="Estimated" highlight />
-                    <MetricCard icon={<Activity size={20} />} label="進行中 / ACTIVE" value={metrics.activeCases} subtext="Current Projects" />
-                    <MetricCard icon={<Calculator size={20} />} label="平均客單價 / AVG TICKET" value={`$${metrics.avgRevenue.toLocaleString()}`} subtext="Per Case" />
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Status Chart */}
-                    <Card title="案件狀態分佈 / STATUS DISTRIBUTION">
-                        <div className="h-[300px] w-full flex items-center justify-center">
-                            {statusData.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={statusData}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={100}
-                                            paddingAngle={5}
-                                            dataKey="value"
-                                        >
-                                            {statusData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.color} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip />
-                                        <Legend />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <div className="text-gray-400 text-sm">無資料 / NO DATA</div>
-                            )}
-                        </div>
-                    </Card>
-
-                    {/* Revenue Chart */}
-                    <Card title="工程類別營收排行 / REVENUE BY CATEGORY">
-                        <div className="h-[300px] w-full min-h-[300px]">
-                            {categoryData.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%" minHeight={300}>
-                                    <BarChart data={categoryData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                                        <XAxis type="number" tickFormatter={(value) => `$${value / 1000}k`} />
-                                        <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 10 }} />
-                                        <Tooltip formatter={(value: number) => `$${value.toLocaleString()}`} />
-                                        <Bar dataKey="value" fill="#18181b" radius={[0, 4, 4, 0]} barSize={20} />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <div className="text-gray-400 text-sm flex items-center justify-center h-full">無資料 / NO DATA</div>
-                            )}
-                        </div>
-                    </Card>
-                </div>
-
+            <div className="space-y-6 animate-in fade-in duration-500">
+                <OverviewTab cases={cases} metrics={metrics} statusData={statusData} categoryData={categoryData} />
             </div>
         </Layout>
     );
 };
+
+const OverviewTab = ({ cases, metrics, statusData, categoryData }: any) => (
+    <div className="space-y-8 animate-in slide-in-from-right duration-300">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <MetricCard icon={<Users size={20} />} label="總案件數 / TOTAL CASES" value={metrics.totalCases} subtext="Lifetime" />
+            <MetricCard icon={<TrendingUp size={20} />} label="預估總營收 / REVENUE" value={`$${metrics.totalRevenue.toLocaleString()}`} subtext="Estimated" highlight />
+            <MetricCard icon={<Activity size={20} />} label="進行中 / ACTIVE" value={metrics.activeCases} subtext="Current Projects" />
+            <MetricCard icon={<Calculator size={20} />} label="平均客單價 / AVG TICKET" value={`$${metrics.avgRevenue.toLocaleString()}`} subtext="Per Case" />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <Card title="案件狀態分佈 / STATUS DISTRIBUTION">
+                <div className="h-[300px] w-full flex items-center justify-center">
+                    {statusData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={statusData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={100}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    {statusData.map((entry: any, index: number) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="text-gray-400 text-sm">無資料 / NO DATA</div>
+                    )}
+                </div>
+            </Card>
+
+            <Card title="工程類別營收排行 / REVENUE BY CATEGORY">
+                <div className="h-[300px] w-full min-h-[300px]">
+                    {categoryData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%" minHeight={300}>
+                            <BarChart data={categoryData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                                <XAxis type="number" tickFormatter={(value) => `$${value / 1000}k`} />
+                                <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 10 }} />
+                                <Tooltip formatter={(value: number) => `$${value.toLocaleString()}`} />
+                                <Bar dataKey="value" fill="#18181b" radius={[0, 4, 4, 0]} barSize={20} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="text-gray-400 text-sm flex items-center justify-center h-full">無資料 / NO DATA</div>
+                    )}
+                </div>
+            </Card>
+        </div>
+    </div>
+);
+
+
+
 
 const MetricCard = ({ icon, label, value, subtext, highlight = false }: any) => (
     <div className={`p-5 rounded-lg border ${highlight ? 'bg-black text-white border-black' : 'bg-white text-gray-800 border-gray-100'} shadow-sm flex flex-col gap-4`}>
