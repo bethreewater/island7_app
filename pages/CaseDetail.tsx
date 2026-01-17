@@ -4,7 +4,7 @@ import {
   Trash2, Plus, Calculator, FileCheck, Edit3,
   Layers, Calendar as CalendarIcon, Save,
   Wand2, CheckCircle2, ChevronLeft, ChevronRight, MapPin, X, ChevronDown, ChevronUp,
-  Clock, Info, FileText, Camera, CloudRain, Sun, Cloud, History, FastForward, Coffee, AlertTriangle, Play, Square, Pause, SkipForward
+  Clock, Info, FileText, Camera, CloudRain, Sun, Cloud, History, FastForward, Coffee, AlertTriangle, Play, Square, Pause, SkipForward, ShieldCheck
 } from 'lucide-react';
 import { CaseData, Zone, ScheduleTask, MethodItem, ServiceCategory, ConstructionLog, BreakPeriod } from '../types';
 import { getMethods, saveCase } from '../services/storageService';
@@ -579,7 +579,7 @@ const ZoneCard: React.FC<{ zone: Zone; methods: MethodItem[]; onUpdate: (z: Zone
 
 // --- 主詳情頁面 / CASE DETAIL PAGE ---
 export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUpdate: (u: CaseData) => void }> = ({ caseData, onBack, onUpdate }) => {
-  const [activeTab, setActiveTab] = useState<'eval' | 'log' | 'quote' | 'schedule'>('eval');
+  const [activeTab, setActiveTab] = useState<'eval' | 'log' | 'quote' | 'schedule' | 'warranty'>('eval');
   const [localData, setLocalData] = useState<CaseData>(caseData);
   const [methods, setMethods] = useState<MethodItem[]>([]);
 
@@ -640,13 +640,15 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
   return (
     <Layout title={localData.customerName} onBack={onBack}>
       <div className="flex border-b border-zinc-100 mb-6 sticky top-16 md:top-28 bg-[#fcfcfc]/90 backdrop-blur-md z-40 shadow-sm overflow-x-auto no-scrollbar">
-        <TabButton active={activeTab === 'eval'} onClick={() => setActiveTab('eval')} icon={<Calculator size={16} />} label="現場配置 / CONFIG" />
-        <TabButton active={activeTab === 'log'} onClick={() => setActiveTab('log')} icon={<FileText size={16} />} label="施工日誌 / LOG" />
-        <TabButton active={activeTab === 'schedule'} onClick={() => setActiveTab('schedule')} icon={<CalendarIcon size={16} />} label="工期管理 / SCHEDULE" />
+        <TabButton active={activeTab === 'eval'} onClick={() => setActiveTab('eval')} icon={<Calculator size={16} />} label="現場評估 / EVAL" />
         <TabButton active={activeTab === 'quote'} onClick={() => setActiveTab('quote')} icon={<FileCheck size={16} />} label="報價結算 / QUOTE" />
+        <TabButton active={activeTab === 'schedule'} onClick={() => setActiveTab('schedule')} icon={<CalendarIcon size={16} />} label="工期管理 / SCHEDULE" />
+        <TabButton active={activeTab === 'log'} onClick={() => setActiveTab('log')} icon={<FileText size={16} />} label="施工日誌 / LOG" />
+        <TabButton active={activeTab === 'warranty'} onClick={() => setActiveTab('warranty')} icon={<ShieldCheck size={16} />} label="保固服務 / WARRANTY" />
       </div>
 
       <div className="pb-40">
+        {/* TAB 1: EVALUATION (ZONES) */}
         {activeTab === 'eval' && (
           <div className="space-y-6 animate-in fade-in duration-300">
             <div className="flex justify-between items-end">
@@ -662,35 +664,7 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
           </div>
         )}
 
-        {activeTab === 'log' && (
-          <ConstructionLogTab
-            schedule={localData.schedule}
-            logs={localData.logs || []}
-            onUpdate={(newLogs, updatedSchedule) => {
-              const newData = { ...localData, logs: newLogs };
-              if (updatedSchedule) {
-                newData.schedule = updatedSchedule;
-              }
-              handleUpdate(newData);
-            }}
-          />
-        )}
-
-        {activeTab === 'schedule' && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-right duration-300">
-            <Card title="自動排程引擎 / AUTO SCHEDULER">
-              <div className="space-y-4">
-                <Input label="開工預定日 / START DATE" type="date" value={localData.startDate || ''} onChange={e => handleUpdate({ ...localData, startDate: e.target.value })} />
-                <Button onClick={generateAutoSchedule} className="w-full py-3"><Wand2 size={18} /> 生成自動排程 / GENERATE</Button>
-              </div>
-            </Card>
-            <ProjectCalendar
-              schedule={localData.schedule}
-              logs={localData.logs || []}
-            />
-          </div>
-        )}
-
+        {/* TAB 2: QUOTATION */}
         {activeTab === 'quote' && (
           <div className="space-y-8 animate-in fade-in slide-in-from-right duration-300">
             <Card title="最終報價結算 / QUOTATION">
@@ -711,6 +685,50 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
               <Button onClick={() => generateContractPDF(localData)} variant="outline" className="h-16 border-zinc-200"><FileCheck size={20} /> 合約文件 / CONTRACT</Button>
               <Button onClick={() => generateInvoicePDF(localData)} variant="outline" className="h-16 border-zinc-200"><Calculator size={20} /> 報價清單 / QUOTE</Button>
             </div>
+          </div>
+        )}
+
+        {/* TAB 3: SCHEDULE */}
+        {activeTab === 'schedule' && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-right duration-300">
+            <Card title="自動排程引擎 / AUTO SCHEDULER">
+              <div className="space-y-4">
+                <Input label="開工預定日 / START DATE" type="date" value={localData.startDate || ''} onChange={e => handleUpdate({ ...localData, startDate: e.target.value })} />
+                <Button onClick={generateAutoSchedule} className="w-full py-3"><Wand2 size={18} /> 生成自動排程 / GENERATE</Button>
+              </div>
+            </Card>
+            <ProjectCalendar
+              schedule={localData.schedule}
+              logs={localData.logs || []}
+            />
+          </div>
+        )}
+
+        {/* TAB 4: LOG */}
+        {activeTab === 'log' && (
+          <ConstructionLogTab
+            schedule={localData.schedule}
+            logs={localData.logs || []}
+            onUpdate={(newLogs, updatedSchedule) => {
+              const newData = { ...localData, logs: newLogs };
+              if (updatedSchedule) {
+                newData.schedule = updatedSchedule;
+              }
+              handleUpdate(newData);
+            }}
+          />
+        )}
+
+        {/* TAB 5: WARRANTY (New) */}
+        {activeTab === 'warranty' && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-right duration-300">
+            <Card title="保固紀錄 / WARRANTY RECORD">
+              <div className="text-center py-12 text-zinc-400 text-xs font-black uppercase tracking-widest">
+                No Warranty Records Found
+                <br />
+                <span className="opacity-50">保固功能即將開放</span>
+              </div>
+            </Card>
           </div>
         )}
       </div>
