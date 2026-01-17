@@ -4,7 +4,11 @@ import { METHOD_CATALOG } from '../constants';
 
 const LOCAL_STORAGE_KEY = 'ISLAND7_CASES_V1';
 
+let dbInitialized = false;
+
 export const initDB = async (): Promise<void> => {
+  if (dbInitialized) return;
+
   // 檢查是否需要初始化方案表
   try {
     const { count, error } = await supabase.from('methods').select('*', { count: 'exact', head: true });
@@ -14,21 +18,38 @@ export const initDB = async (): Promise<void> => {
       const { error: insertError } = await supabase.from('methods').insert(METHOD_CATALOG);
       if (insertError) console.error('Failed to initialize methods:', insertError);
     }
+    dbInitialized = true;
   } catch (err) {
     console.error('Error checking methods table:', err);
   }
-
-
-  /* 移民邏輯移除 */
 };
 
 export const getCases = async (): Promise<CaseData[]> => {
-  const { data, error } = await supabase.from('cases').select('*');
+  // OPTIMIZED: Only fetch summary fields for list view
+  const { data, error } = await supabase
+    .from('cases')
+    .select('caseId, createdDate, customerName, phone, lineId, address, status, finalPrice, manualPriceAdjustment');
+
   if (error) {
     console.error('Error fetching cases:', error);
-    throw error; // Throw error to be caught by UI
+    throw error;
   }
-  return data || [];
+  // Type assertion since we know we are missing some fields but Dashboard only needs these
+  return (data || []) as unknown as CaseData[];
+};
+
+export const getCaseDetails = async (caseId: string): Promise<CaseData | null> => {
+  const { data, error } = await supabase
+    .from('cases')
+    .select('*')
+    .eq('caseId', caseId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching case details:', error);
+    return null;
+  }
+  return data;
 };
 
 export const subscribeToCases = (callback: () => void) => {

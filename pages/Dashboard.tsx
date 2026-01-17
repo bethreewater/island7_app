@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Search, FolderOpen, TrendingUp, AlertCircle, CheckCircle2, ArrowRight, Book, X, User, Phone, MessageSquare, MapPin, Trash2, Edit } from 'lucide-react';
 import { CaseData, CaseStatus, STATUS_LABELS } from '../types';
-import { getCases, getInitialCase, saveCase, deleteCase, initDB, subscribeToCases } from '../services/storageService';
+import { getCases, getInitialCase, saveCase, deleteCase, initDB, subscribeToCases, getCaseDetails } from '../services/storageService';
 import { Button, Card, Input } from '../components/InputComponents';
 import { Layout } from '../components/Layout';
 
@@ -126,6 +126,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB, on
     }
   };
 
+  const handleCaseClick = async (caseId: string) => {
+    setLoading(true);
+    try {
+      const fullData = await getCaseDetails(caseId);
+      if (fullData) {
+        onSelectCase(fullData);
+      } else {
+        throw new Error('Case data missing');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('無法讀取案件詳細資料');
+      setLoading(false);
+    }
+  };
+
   const filteredCases = cases.filter(c =>
     c.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.caseId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -168,7 +184,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB, on
           <StatCard icon={<FolderOpen size={14} />} label="案件 / TOTAL" value={stats.total} />
           <StatCard icon={<AlertCircle size={14} />} label="進度 / ACTIVE" value={stats.progress} dark />
           <StatCard icon={<CheckCircle2 size={14} />} label="完工 / DONE" value={stats.done} />
-          <StatCard icon={<TrendingUp size={14} />} label="營收 / REVENUE" value={`$${(stats.revenue / 10000).toFixed(0)}W`} />
+          <StatCard icon={<TrendingUp size={14} />} label="營收 / REVENUE" value={`$${parseFloat((stats.revenue / 1000).toFixed(1))}k`} />
         </div>
 
         {/* 操作按鈕 / COMPACT ACTIONS */}
@@ -220,7 +236,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB, on
           {filteredCases.length > 0 ? filteredCases.map(c => (
             <div
               key={c.caseId}
-              onClick={() => onSelectCase(c)}
+              onClick={() => handleCaseClick(c.caseId)}
               className="group bg-white border border-zinc-100 rounded-sm p-3 md:p-5 hover:border-zinc-950 transition-all cursor-pointer flex items-center justify-between shadow-sm"
             >
               <div className="flex items-center gap-4 md:gap-6 min-w-0">

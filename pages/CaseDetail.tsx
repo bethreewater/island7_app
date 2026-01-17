@@ -116,8 +116,8 @@ const MaterialList: React.FC<{ zones: Zone[] }> = ({ zones }) => {
         <div className="text-xs font-black uppercase text-zinc-400">ESTIMATED MATERIALS / 預估用料</div>
         <div className="text-sm font-black">預估成本: ${Math.round(totalCost).toLocaleString()}</div>
       </div>
-      <div className="border border-zinc-100 rounded-sm overflow-hidden">
-        <table className="w-full text-left text-sm">
+      <div className="border border-zinc-100 rounded-sm overflow-hidden overflow-x-auto">
+        <table className="w-full text-left text-sm min-w-[300px]">
           <thead className="bg-zinc-50 text-[10px] uppercase font-black text-zinc-400">
             <tr>
               <th className="p-3">材料 / NAME</th>
@@ -1005,7 +1005,7 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 w-full bg-white border-t border-zinc-950 p-4 z-50 md:max-w-7xl md:mx-auto flex justify-between items-center gap-4">
+      <div className="fixed bottom-0 left-0 w-full bg-white border-t border-zinc-950 p-4 z-[70] md:max-w-7xl md:mx-auto flex justify-between items-center gap-4 shadow-[0_-5px_20px_rgba(0,0,0,0.1)]">
         <div className="flex flex-col">
           <div className="text-[7px] text-zinc-400 font-black uppercase tracking-widest leading-none mb-1">FINAL TOTAL / 結算</div>
           <div className="font-black text-xl text-zinc-950 leading-none">${(calculatedTotal + localData.manualPriceAdjustment).toLocaleString()}</div>

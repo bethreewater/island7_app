@@ -110,8 +110,8 @@ const RecipeManager = ({ methodId }: { methodId: string }) => {
               <div className="w-1.5 h-1.5 rounded-full bg-zinc-400"></div>
               <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">固定器材 / FIXED TOOLS</h4>
             </div>
-            <div className="border border-zinc-100 rounded-sm overflow-hidden">
-              <table className="w-full text-left text-sm">
+            <div className="border border-zinc-100 rounded-sm overflow-hidden overflow-x-auto">
+              <table className="w-full text-left text-sm min-w-[500px]">
                 <thead className="bg-zinc-50 text-[10px] uppercase font-black text-zinc-400">
                   <tr>
                     <th className="p-3 w-1/2">器材名稱 / ITEM</th>
@@ -150,8 +150,8 @@ const RecipeManager = ({ methodId }: { methodId: string }) => {
               <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
               <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">變動耗材 / VARIABLE MATERIALS</h4>
             </div>
-            <div className="border border-blue-100 rounded-sm overflow-hidden">
-              <table className="w-full text-left text-sm">
+            <div className="border border-blue-100 rounded-sm overflow-hidden overflow-x-auto">
+              <table className="w-full text-left text-sm min-w-[500px]">
                 <thead className="bg-blue-50 text-[10px] uppercase font-black text-blue-400">
                   <tr>
                     <th className="p-3 w-1/2">材料名稱 / MATERIAL</th>
@@ -190,7 +190,7 @@ const RecipeManager = ({ methodId }: { methodId: string }) => {
 };
 
 
-export const KnowledgeBase: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: 'dashboard' | 'datacenter' | 'settings') => void }> = ({ onBack, onNavigate }) => {
   const [methods, setMethods] = useState<MethodItem[]>([]);
 
   const [editingMethod, setEditingMethod] = useState<MethodItem | null>(null);
@@ -259,7 +259,7 @@ export const KnowledgeBase: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   };
 
   return (
-    <Layout title="知識庫 / KNOWLEDGE BASE" onBack={onBack}>
+    <Layout title="知識庫 / KNOWLEDGE BASE" onBack={onBack} onNavigate={onNavigate}>
       {editingMethod ? (
         <div className="space-y-6 animate-in slide-in-from-right duration-300 pb-20">
           <div className="flex justify-between items-center">
