@@ -132,6 +132,25 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate }) => {
                             </div>
                         </div>
                     </Card>
+
+                    <Card title="行動連線 / MOBILE CONNECT">
+                        <div className="flex flex-col items-center space-y-4">
+                            <p className="text-sm text-zinc-500 text-center">
+                                掃描 QR Code 即可在手機上開啟系統。
+                                <br /><span className="text-xs opacity-60">Scan to open on mobile device.</span>
+                            </p>
+                            <div className="bg-white p-2 border border-zinc-100 rounded-lg shadow-sm">
+                                <img
+                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.href)}`}
+                                    alt="Connection QR Code"
+                                    className="w-32 h-32 opacity-90"
+                                />
+                            </div>
+                            <div className="text-[10px] text-zinc-300 font-mono break-all text-center px-4">
+                                {window.location.href}
+                            </div>
+                        </div>
+                    </Card>
                 </div>
 
                 {/* Footer */}
