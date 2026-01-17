@@ -66,7 +66,7 @@ const MaterialList: React.FC<{ zones: Zone[] }> = ({ zones }) => {
     load();
   }, []);
 
-  const requirements = useMemo(() => {
+  const { materials, tools, totalCost } = useMemo(() => {
     const totals: Record<string, { name: string, unit: string, qty: number, category: string, cost: number }> = {};
 
     zones.forEach(zone => {
@@ -97,48 +97,91 @@ const MaterialList: React.FC<{ zones: Zone[] }> = ({ zones }) => {
       });
     });
 
-    return Object.values(totals).sort((a, b) => a.category === 'fixed' ? 1 : -1);
+    const allItems = Object.values(totals);
+    return {
+      materials: allItems.filter(i => i.category !== 'fixed').sort((a, b) => b.cost - a.cost),
+      tools: allItems.filter(i => i.category === 'fixed').sort((a, b) => b.cost - a.cost),
+      totalCost: allItems.reduce((sum, i) => sum + i.cost, 0)
+    };
   }, [zones, recipes]);
 
   if (loading) return <div className="text-center py-4 text-xs text-zinc-400">Loading materials...</div>;
 
-  if (requirements.length === 0) return (
+  if (materials.length === 0 && tools.length === 0) return (
     <div className="text-center py-8 border border-dashed border-zinc-200 rounded-sm bg-zinc-50">
       <div className="text-zinc-400 text-xs">尚無備料資料 (請確認工法是否對應) / NO DATA</div>
     </div>
   );
 
-  const totalCost = requirements.reduce((sum, r) => sum + r.cost, 0);
-
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-end">
+    <div className="space-y-8 animate-in fade-in duration-300">
+      <div className="flex justify-between items-end border-b border-zinc-100 pb-4">
         <div className="text-xs font-black uppercase text-zinc-400">ESTIMATED MATERIALS / 預估用料</div>
-        <div className="text-sm font-black">預估成本: ${Math.round(totalCost).toLocaleString()}</div>
+        <div className="text-sm font-black">預估總成本: <span className="text-lg">${Math.round(totalCost).toLocaleString()}</span></div>
       </div>
-      <div className="border border-zinc-100 rounded-sm overflow-hidden overflow-x-auto">
-        <table className="w-full text-left text-sm min-w-[300px]">
-          <thead className="bg-zinc-50 text-[10px] uppercase font-black text-zinc-400">
-            <tr>
-              <th className="p-3">材料 / NAME</th>
-              <th className="p-3">類別 / TYPE</th>
-              <th className="p-3 text-right">數量 / QTY</th>
-              <th className="p-3 text-right">成本 / COST</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100">
-            {requirements.map((req, idx) => (
-              <tr key={idx} className="bg-white hover:bg-zinc-50/50">
-                <td className="p-3 font-bold text-zinc-700">{req.name}</td>
-                <td className="p-3 text-[10px] uppercase text-zinc-400">{req.category === 'fixed' ? '工具 (TOOL)' : '耗材 (MAT)'}</td>
-                <td className="p-3 text-right font-mono text-zinc-600">
-                  {req.qty > 0 && req.qty < 1 ? req.qty.toFixed(2) : Math.ceil(req.qty)} <span className="text-[10px] text-zinc-300 ml-1">{req.unit}</span>
-                </td>
-                <td className="p-3 text-right font-mono text-zinc-400">${Math.round(req.cost).toLocaleString()}</td>
+
+      {/* Materials Table */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-1 h-4 bg-zinc-950"></div>
+          <div className="text-[10px] font-black uppercase text-zinc-950">耗材清單 / CONSUMABLES</div>
+        </div>
+        <div className="border border-zinc-100 rounded-sm overflow-hidden overflow-x-auto shadow-sm">
+          <table className="w-full text-left text-sm min-w-[300px]">
+            <thead className="bg-zinc-50 text-[9px] uppercase font-black text-zinc-400">
+              <tr>
+                <th className="p-3">名稱 / NAME</th>
+                <th className="p-3 text-right">數量 / QTY</th>
+                <th className="p-3 text-right">成本 / COST</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-zinc-50">
+              {materials.length > 0 ? materials.map((req, idx) => (
+                <tr key={idx} className="bg-white hover:bg-zinc-50/50">
+                  <td className="p-3 font-bold text-zinc-700">{req.name}</td>
+                  <td className="p-3 text-right font-mono text-zinc-600">
+                    {req.qty > 0 && req.qty < 1 ? req.qty.toFixed(2) : Math.ceil(req.qty)} <span className="text-[10px] text-zinc-300 ml-1">{req.unit}</span>
+                  </td>
+                  <td className="p-3 text-right font-mono text-zinc-400">${Math.round(req.cost).toLocaleString()}</td>
+                </tr>
+              )) : (
+                <tr><td colSpan={3} className="p-4 text-center text-xs text-zinc-300 italic">無耗材需求</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Tools Table */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-1 h-4 bg-zinc-300"></div>
+          <div className="text-[10px] font-black uppercase text-zinc-500">工具清單 / TOOLS</div>
+        </div>
+        <div className="border border-zinc-100 rounded-sm overflow-hidden overflow-x-auto shadow-sm">
+          <table className="w-full text-left text-sm min-w-[300px]">
+            <thead className="bg-zinc-50 text-[9px] uppercase font-black text-zinc-400">
+              <tr>
+                <th className="p-3">名稱 / NAME</th>
+                <th className="p-3 text-right">數量 / QTY</th>
+                <th className="p-3 text-right">成本 / COST</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-50">
+              {tools.length > 0 ? tools.map((req, idx) => (
+                <tr key={idx} className="bg-white hover:bg-zinc-50/50">
+                  <td className="p-3 font-bold text-zinc-700">{req.name}</td>
+                  <td className="p-3 text-right font-mono text-zinc-600">
+                    {Math.ceil(req.qty)} <span className="text-[10px] text-zinc-300 ml-1">{req.unit}</span>
+                  </td>
+                  <td className="p-3 text-right font-mono text-zinc-400">${Math.round(req.cost).toLocaleString()}</td>
+                </tr>
+              )) : (
+                <tr><td colSpan={3} className="p-4 text-center text-xs text-zinc-300 italic">無工具需求</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -211,9 +254,11 @@ const ConstructionLogTab: React.FC<{
       ? logs.map(l => l.id === finalLog.id ? finalLog : l)
       : [finalLog, ...logs];
 
-    // 若有延期，更新排程
+    // 若有延期，更新排程 (順延)；若無延期，則視為當日任務完成
     let updatedSchedule = undefined;
+
     if (delay > 0) {
+      // 延期：將「當日及之後」且「未完成」的任務往後推移
       updatedSchedule = schedule.map(task => {
         if (task.date >= finalLog.date && !task.isCompleted) {
           const d = new Date(task.date);
@@ -222,6 +267,17 @@ const ConstructionLogTab: React.FC<{
         }
         return task;
       });
+    } else {
+      // 正常施工：將「當日」的任務標記為完成
+      const hasPendingTasks = schedule.some(t => t.date === finalLog.date && !t.isCompleted);
+      if (hasPendingTasks) {
+        updatedSchedule = schedule.map(task => {
+          if (task.date === finalLog.date) {
+            return { ...task, isCompleted: true };
+          }
+          return task;
+        });
+      }
     }
 
     onUpdate(newLogs.sort((a, b) => b.date.localeCompare(a.date)), updatedSchedule);
@@ -293,7 +349,7 @@ const ConstructionLogTab: React.FC<{
                 id="isNoWorkDay"
                 className="w-5 h-5 accent-zinc-950 cursor-pointer"
                 checked={logForm.isNoWorkDay || false}
-                onChange={e => setLogForm({ ...logForm, isNoWorkDay: e.target.checked, action: e.target.checked ? '工期順延 (當日不施工)' : STANDARD_LOG_ACTIONS[0] })}
+                onChange={e => setLogForm({ ...logForm, isNoWorkDay: e.target.checked, action: e.target.checked ? '工期順延 (當日不施工)' : STANDARD_LOG_ACTIONS[0], delayDays: e.target.checked ? 1 : 0 })}
               />
               <label htmlFor="isNoWorkDay" className="text-sm font-black text-amber-900 uppercase cursor-pointer">今日不施工 (僅紀錄工期順延) / SKIP WORK TODAY</label>
             </div>
@@ -307,8 +363,9 @@ const ConstructionLogTab: React.FC<{
                 <option value="雨天">雨天 / RAINY</option>
               </Select>
               {logForm.isNoWorkDay ? (
-                <div className="bg-amber-100 p-2 rounded-sm ring-2 ring-amber-200">
-                  <Input label="順延天數 / DELAY DAYS" type="number" value={logForm.delayDays} onChange={e => setLogForm({ ...logForm, delayDays: parseInt(e.target.value) || 0 })} />
+                <div className="bg-amber-100 p-2 rounded-sm ring-2 ring-amber-200 flex flex-col justify-center">
+                  <div className="text-[9px] font-black text-amber-600 uppercase tracking-widest">延期天數 / DELAY</div>
+                  <div className="font-black text-amber-900">自動順延 1 天</div>
                 </div>
               ) : (
                 <Select label="施作工項 / ACTION" value={logForm.action} onChange={e => setLogForm({ ...logForm, action: e.target.value })}>
@@ -474,9 +531,9 @@ const PhotoGroup = ({ label, photos }: { label: string, photos: string[] }) => (
 );
 
 // --- 排程管理元件 / SCHEDULE MANAGER ---
-const ProjectCalendar: React.FC<{ schedule: ScheduleTask[]; logs: ConstructionLog[] }> = ({ schedule, logs }) => {
+const ProjectCalendar: React.FC<{ schedule: ScheduleTask[]; logs: ConstructionLog[]; onUpdate: (s: ScheduleTask[]) => void }> = ({ schedule, logs, onUpdate }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(new Date().toISOString().slice(0, 10)); // Default to today
 
   const totalDelay = useMemo(() => logs.reduce((sum, log) => sum + (log.delayDays || 0), 0), [logs]);
 
@@ -498,8 +555,8 @@ const ProjectCalendar: React.FC<{ schedule: ScheduleTask[]; logs: ConstructionLo
   }, [schedule]);
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="md:col-span-2 border-zinc-950 overflow-hidden shadow-xl" noPadding>
           <div className="bg-zinc-950 text-white p-4 flex justify-between items-center">
             <h3 className="font-black text-lg uppercase tracking-tight">{year} / {month + 1}月</h3>
@@ -519,10 +576,15 @@ const ProjectCalendar: React.FC<{ schedule: ScheduleTask[]; logs: ConstructionLo
               const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`;
               const dayTasks = tasksByDate[dateKey] || [];
               const isToday = new Date().toISOString().slice(0, 10) === dateKey;
+
               return (
-                <div key={i} onClick={() => setSelectedDate(dateKey)} className={`aspect-square border-b border-r border-zinc-50 p-1 cursor-pointer transition-colors ${selectedDate === dateKey ? 'bg-zinc-100 ring-2 ring-inset ring-zinc-950 z-10' : 'hover:bg-zinc-50'}`}>
+                <div key={i} onClick={() => setSelectedDate(dateKey)} className={`aspect-square border-b border-r border-zinc-50 p-1 cursor-pointer transition-colors relative ${selectedDate === dateKey ? 'bg-zinc-100 ring-2 ring-inset ring-zinc-950 z-10' : 'hover:bg-zinc-50'}`}>
                   <span className={`text-[10px] font-black ${isToday ? 'bg-zinc-950 text-white px-1.5 rounded-sm' : 'text-zinc-300'}`}>{i + 1}</span>
-                  {dayTasks.length > 0 && <div className="w-1.5 h-1.5 bg-zinc-950 rounded-full mx-auto mt-1"></div>}
+                  <div className="flex gap-0.5 mt-1 flex-wrap content-start">
+                    {dayTasks.map((t, ti) => (
+                      <div key={ti} className={`w-1.5 h-1.5 rounded-full ${t.isCompleted ? 'bg-emerald-300' : 'bg-red-400'}`}></div>
+                    ))}
+                  </div>
                 </div>
               );
             })}
@@ -541,7 +603,6 @@ const ProjectCalendar: React.FC<{ schedule: ScheduleTask[]; logs: ConstructionLo
                   <span className="text-[10px] font-black text-zinc-300 uppercase">DAYS</span>
                 </div>
               </div>
-
               {totalDelay > 0 && (
                 <div className="p-3 bg-amber-50 border border-amber-100 rounded-sm flex gap-3 items-start animate-pulse">
                   <AlertTriangle className="text-amber-600 shrink-0" size={16} />
@@ -550,23 +611,28 @@ const ProjectCalendar: React.FC<{ schedule: ScheduleTask[]; logs: ConstructionLo
                   </p>
                 </div>
               )}
-
-              <p className="text-[9px] text-zinc-400 italic leading-relaxed">
-                * 系統將自動根據日誌填寫的「延期天數」推移剩餘任務日期。
-              </p>
             </div>
           </Card>
 
           {selectedDate && tasksByDate[selectedDate] && (
             <Card title={`${selectedDate} 任務`}>
-              <div className="space-y-2">
-                {tasksByDate[selectedDate].map((t, idx) => (
-                  <div key={idx} className="text-[10px] font-black border-b border-zinc-50 pb-2">
-                    <div className="text-zinc-400">@{t.zoneName}</div>
-                    <div className="text-zinc-950">{t.taskName}</div>
-                  </div>
-                ))}
-              </div>
+              {tasksByDate[selectedDate].length > 0 ? (
+                <div className="space-y-2">
+                  {tasksByDate[selectedDate].map((t, idx) => (
+                    <div key={idx} className="flex items-start gap-3 p-2 border-b border-zinc-50 last:border-0">
+                      <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center ${t.isCompleted ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 bg-zinc-50'}`}>
+                        {t.isCompleted && <CheckCircle2 size={10} />}
+                      </div>
+                      <div className={t.isCompleted ? 'opacity-40 line-through' : ''}>
+                        <div className="text-[10px] text-zinc-400 uppercase font-black">@{t.zoneName}</div>
+                        <div className="text-sm font-bold text-zinc-950">{t.taskName}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-zinc-300 text-xs italic text-center py-4">無任務 / NO TASK</div>
+              )}
             </Card>
           )}
         </div>
@@ -996,6 +1062,7 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
             <ProjectCalendar
               schedule={localData.schedule}
               logs={localData.logs || []}
+              onUpdate={(s) => handleUpdate({ ...localData, schedule: s })}
             />
           </div>
         )}

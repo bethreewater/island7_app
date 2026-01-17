@@ -9,36 +9,16 @@ import { Calculator, TrendingUp, Users, Activity, Shield, FolderOpen } from 'luc
 
 
 interface DataCenterProps {
+    cases: CaseData[];
     onNavigate?: (view: 'dashboard' | 'datacenter' | 'settings') => void;
 }
 
-export const DataCenter: React.FC<DataCenterProps> = ({ onNavigate }) => {
-    const [cases, setCases] = useState<CaseData[]>([]);
-    const [loading, setLoading] = useState(true);
+export const DataCenter: React.FC<DataCenterProps> = ({ cases = [], onNavigate }) => {
+    // const [cases, setCases] = useState<CaseData[]>([]); // Lifted
+    // const [loading, setLoading] = useState(true); // Lifted
 
-    useEffect(() => {
-        loadData();
-        // subscribeToCases returns a subscription object, and callback takes no args
-        const subscription = subscribeToCases(() => {
-            loadData();
-        });
+    // Removed useEffect fetching logic
 
-        // Cleanup: subscription.unsubscribe()
-        return () => {
-            subscription.unsubscribe();
-        };
-    }, []);
-
-    const loadData = async () => {
-        try {
-            const data = await getAnalyticsData();
-            setCases(data);
-        } catch (error) {
-            console.error('Failed to load cases:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const metrics = useMemo(() => {
         const assessmentCases = cases.filter(c => c.status === CaseStatus.ASSESSMENT || c.status === CaseStatus.NEW).length;
@@ -84,7 +64,7 @@ export const DataCenter: React.FC<DataCenterProps> = ({ onNavigate }) => {
             currentView="datacenter"
         >
             <div className="space-y-6 animate-in fade-in duration-500">
-                <OverviewTab cases={cases} metrics={metrics} statusData={statusData} categoryData={categoryData} loading={loading} />
+                <OverviewTab cases={cases} metrics={metrics} statusData={statusData} categoryData={categoryData} loading={false} />
             </div>
         </Layout>
     );

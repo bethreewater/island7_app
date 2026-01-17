@@ -25,17 +25,16 @@ export const initDB = async (): Promise<void> => {
 };
 
 export const getCases = async (): Promise<CaseData[]> => {
-  // OPTIMIZED: Only fetch summary fields for list view
+  // Unified fetch for App-level caching (includes zones for DataCenter)
   const { data, error } = await supabase
     .from('cases')
-    .select('caseId, createdDate, customerName, phone, lineId, address, status, finalPrice, manualPriceAdjustment');
+    .select('caseId, createdDate, customerName, phone, lineId, address, status, finalPrice, manualPriceAdjustment, zones');
 
   if (error) {
     console.error('Error fetching cases:', error);
     throw error;
   }
-  // Type assertion since we know we are missing some fields but Dashboard only needs these
-  return (data || []) as unknown as CaseData[];
+  return (data || []) as CaseData[];
 };
 
 export const getCaseDetails = async (caseId: string): Promise<CaseData | null> => {

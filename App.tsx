@@ -3,13 +3,13 @@ import { CaseData } from './types';
 import { supabase } from './services/supabaseClient';
 import { Session } from '@supabase/supabase-js';
 
-// Lazy Load Components
-const Dashboard = React.lazy(() => import('./pages/Dashboard').then(module => ({ default: module.Dashboard })));
-const CaseDetail = React.lazy(() => import('./pages/CaseDetail').then(module => ({ default: module.CaseDetail })));
-const KnowledgeBase = React.lazy(() => import('./pages/KnowledgeBase').then(module => ({ default: module.KnowledgeBase })));
-const DataCenter = React.lazy(() => import('./pages/DataCenter').then(module => ({ default: module.DataCenter })));
-const Settings = React.lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
-const Login = React.lazy(() => import('./pages/Login').then(module => ({ default: module.Login })));
+import { Dashboard } from './pages/Dashboard';
+import { CaseDetail } from './pages/CaseDetail';
+import { KnowledgeBase } from './pages/KnowledgeBase';
+import { DataCenter } from './pages/DataCenter';
+import { Settings } from './pages/Settings';
+import { Login } from './pages/Login';
+import { getCases, subscribeToCases, initDB } from './services/storageService';
 
 const LoadingFallback = () => (
   <div className="min-h-screen flex flex-col items-center justify-center bg-white">
@@ -22,6 +22,7 @@ const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [view, setView] = useState<'dashboard' | 'detail' | 'kb' | 'datacenter' | 'settings'>('dashboard');
   const [selectedCase, setSelectedCase] = useState<CaseData | null>(null);
+  const [cases, setCases] = useState<CaseData[]>([]);
 
   React.useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -34,7 +35,22 @@ const App: React.FC = () => {
       setSession(session);
     });
 
-    return () => subscription.unsubscribe();
+    // Initial Data Load (Global)
+    const loadGlobalData = async () => {
+      await initDB();
+      const data = await getCases();
+      setCases(data.sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime()));
+    };
+    loadGlobalData();
+
+    const dataSub = subscribeToCases(() => {
+      loadGlobalData();
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      dataSub.unsubscribe();
+    };
   }, []);
 
   const handleCaseSelect = (caseData: CaseData) => {
@@ -56,13 +72,11 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Suspense fallback={<LoadingFallback />}>
-        {view === 'dashboard' && <Dashboard onSelectCase={handleCaseSelect} onOpenKB={() => setView('kb')} onNavigate={handleNavigate} />}
-        {view === 'kb' && <KnowledgeBase onBack={() => setView('dashboard')} onNavigate={handleNavigate} />}
-        {view === 'detail' && selectedCase && <CaseDetail caseData={selectedCase} onBack={() => setView('dashboard')} onUpdate={setSelectedCase} />}
-        {view === 'datacenter' && <DataCenter onNavigate={handleNavigate} />}
-        {view === 'settings' && <Settings onNavigate={handleNavigate} />}
-      </Suspense>
+      {view === 'dashboard' && <Dashboard cases={cases} onSelectCase={handleCaseSelect} onOpenKB={() => setView('kb')} onNavigate={handleNavigate} />}
+      {view === 'kb' && <KnowledgeBase onBack={() => setView('dashboard')} onNavigate={handleNavigate} />}
+      {view === 'detail' && selectedCase && <CaseDetail caseData={selectedCase} onBack={() => setView('dashboard')} onUpdate={setSelectedCase} />}
+      {view === 'datacenter' && <DataCenter cases={cases} onNavigate={handleNavigate} />}
+      {view === 'settings' && <Settings onNavigate={handleNavigate} />}
     </div>
   );
 };

@@ -7,17 +7,18 @@ import { Button, Card, Input } from '../components/InputComponents';
 import { Layout } from '../components/Layout';
 
 interface DashboardProps {
+  cases: CaseData[];
   onSelectCase: (c: CaseData) => void;
   onOpenKB: () => void;
   onNavigate?: (view: 'dashboard' | 'datacenter' | 'settings') => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB, onNavigate }) => {
-  const [cases, setCases] = useState<CaseData[]>([]);
-  // ... (keep state)
+export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, onOpenKB, onNavigate }) => {
+  // const [cases, setCases] = useState<CaseData[]>([]); // Removed: Lifted to App
+  // const [loading, setLoading] = useState(true); // Removed: Handled by App (or ignored for Dashboard)
   const [searchTerm, setSearchTerm] = useState('');
   const [showNewModal, setShowNewModal] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [editingCaseId, setEditingCaseId] = useState<string | null>(null);
@@ -26,31 +27,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectCase, onOpenKB, on
   const [newLineId, setNewLineId] = useState('');
   const [newAddress, setNewAddress] = useState('');
 
-  useEffect(() => {
-    // ... (keep useEffect)
-    const loadData = async () => {
-      try {
-        setError(null);
-        await initDB();
-        const loadedCases = await getCases();
-        setCases(loadedCases.sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime()));
-      } catch (e: any) {
-        console.error("Failed to load cases", e);
-        setError(e.message || "無法載入資料，請檢查網路連線");
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
+  // Removed useEffect fetching logic
 
-    const subscription = subscribeToCases(() => {
-      loadData();
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
 
   const stats = useMemo(() => {
     const assessmentStatuses = [CaseStatus.ASSESSMENT, CaseStatus.NEW];
