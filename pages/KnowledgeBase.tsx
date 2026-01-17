@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import toast from 'react-hot-toast';
 import { Layout } from '../components/Layout';
 import { Card, Button, Input, Select } from '../components/InputComponents';
 import { MethodItem, ServiceCategory, MethodStep, Material, MethodRecipe } from '../types';
@@ -30,7 +31,7 @@ const RecipeManager = ({ methodId }: { methodId: string }) => {
   };
 
   const handleAdd = async () => {
-    if (!selectedMatId) return alert('請選擇材料');
+    if (!selectedMatId) return toast('請選擇材料', { icon: '⚠️' });
 
     // Auto-generate ID? Or use backend? We use simple ID here.
     const newRecipe: MethodRecipe = {

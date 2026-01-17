@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Search, FolderOpen, TrendingUp, AlertCircle, CheckCircle2, ArrowRight, Book, X, User, Phone, MessageSquare, MapPin, Trash2, Edit } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { CaseData, CaseStatus, STATUS_LABELS } from '../types';
 import { getCases, getInitialCase, saveCase, deleteCase, initDB, subscribeToCases, getCaseDetails } from '../services/storageService';
 import { Button, Card, Input } from '../components/InputComponents';
@@ -78,7 +79,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
       setEditingCaseId(null);
       setShowNewModal(false);
     } catch (e: any) {
-      alert("儲存失敗: " + (e.message || "未知錯誤"));
+      toast.error("儲存失敗: " + (e.message || "未知錯誤"), { duration: 5000 });
     }
   };
 
@@ -100,7 +101,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
         await deleteCase(caseId);
         // Data will reload via subscription
       } catch (err: any) {
-        alert("刪除失敗: " + err.message);
+        toast.error("刪除失敗: " + err.message, { duration: 5000 });
       }
     }
   };
@@ -114,9 +115,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
       } else {
         throw new Error('Case data missing');
       }
-    } catch (e) {
-      console.error(e);
-      alert('無法讀取案件詳細資料');
+    } catch (err) {
+      toast.error('無法讀取案件詳細資料', { duration: 5000 });
       setLoading(false);
     }
   };

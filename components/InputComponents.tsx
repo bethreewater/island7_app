@@ -1,6 +1,8 @@
-
-import React, { useRef } from 'react';
-import { Camera, X, Image as ImageIcon } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Camera, X, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { uploadImage } from '../services/storageService';
+import imageCompression from 'browser-image-compression';
+import toast from 'react-hot-toast';
 
 export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'outline' }> =
   ({ className = '', variant = 'primary', ...props }) => {
@@ -68,34 +70,55 @@ export const ImageUploader: React.FC<{
   maxImages?: number;
 }> = ({ images, onImagesChange, maxImages = 6 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const files = Array.from(e.target.files) as File[];
+      const files = Array.from(e.target.files);
       const remainingSlots = maxImages - images.length;
       const filesToProcess = files.slice(0, remainingSlots);
 
-      const promises = filesToProcess.map(file => {
-        return new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            if (reader.result && typeof reader.result === 'string') {
-              resolve(reader.result);
-            } else {
-              resolve('');
-            }
-          };
-          reader.readAsDataURL(file);
-        });
-      });
+      if (filesToProcess.length === 0) return;
 
-      Promise.all(promises).then(newBase64Images => {
-        const validImages = newBase64Images.filter(img => img !== '');
-        if (validImages.length > 0) {
-          onImagesChange([...images, ...validImages]);
-        }
-      });
-      e.target.value = '';
+      setUploading(true);
+      try {
+        // Compress images before upload
+        const compressionOptions = {
+          maxSizeMB: 1,
+          maxWidthOrHeight: 1920,
+          useWebWorker: true,
+          initialQuality: 0.8
+        };
+
+        const compressedFiles = await Promise.all(
+          filesToProcess.map(async (file: File) => {
+            // Skip compression for already small images
+            if (file.size < 200 * 1024) {
+              return file;
+            }
+            try {
+              const compressed = await imageCompression(file, compressionOptions);
+              console.log(`Compressed ${file.name}: ${(file.size / 1024).toFixed(0)}KB → ${(compressed.size / 1024).toFixed(0)}KB`);
+              return compressed;
+            } catch (err) {
+              console.warn('Compression failed for', file.name, 'using original', err);
+              return file;
+            }
+          })
+        );
+
+        const uploadPromises = compressedFiles.map(file => uploadImage(file as File));
+        const newUrls = await Promise.all(uploadPromises);
+        onImagesChange([...images, ...newUrls]);
+      } catch (err: any) {
+        console.error(err);
+        toast.error(`照片上傳失敗: ${err.message || '請確認網路或檔案大小'}`, {
+          duration: 6000,
+        });
+      } finally {
+        setUploading(false);
+        if (inputRef.current) inputRef.current.value = '';
+      }
     }
   };
 
@@ -121,11 +144,16 @@ export const ImageUploader: React.FC<{
         {images.length < maxImages && (
           <button
             type="button"
+            disabled={uploading}
             onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
-            className="aspect-square flex flex-col items-center justify-center border-2 border-dashed border-zinc-200 rounded-sm hover:border-zinc-950 hover:bg-zinc-50 transition-all text-zinc-300 hover:text-zinc-950 gap-1 shadow-inner group"
+            className="aspect-square flex flex-col items-center justify-center border-2 border-dashed border-zinc-200 rounded-sm hover:border-zinc-950 hover:bg-zinc-50 transition-all text-zinc-300 hover:text-zinc-950 gap-1 shadow-inner group relative"
           >
-            <Camera size={18} className="md:size-20 group-hover:scale-110 transition-transform" />
-            <span className="text-[7px] font-black tracking-widest uppercase">ADD</span>
+            {uploading ? (
+              <Loader2 size={18} className="animate-spin text-zinc-400" />
+            ) : (
+              <Camera size={18} className="md:size-20 group-hover:scale-110 transition-transform" />
+            )}
+            <span className="text-[7px] font-black tracking-widest uppercase">{uploading ? '...' : 'ADD'}</span>
           </button>
         )}
       </div>

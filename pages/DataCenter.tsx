@@ -2,36 +2,80 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/InputComponents';
-import { getAnalyticsData, subscribeToCases } from '../services/storageService';
+import { getBasicAnalytics, getCategoryStats, subscribeToCases } from '../services/storageService';
 import { CaseData, CaseStatus, ServiceCategory } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { Calculator, TrendingUp, Users, Activity, Shield, FolderOpen } from 'lucide-react';
 
 
 interface DataCenterProps {
-    cases: CaseData[];
     onNavigate?: (view: 'dashboard' | 'datacenter' | 'settings') => void;
 }
 
-export const DataCenter: React.FC<DataCenterProps> = ({ cases = [], onNavigate }) => {
-    // const [cases, setCases] = useState<CaseData[]>([]); // Lifted
-    // const [loading, setLoading] = useState(true); // Lifted
+export const DataCenter: React.FC<DataCenterProps> = ({ onNavigate }) => {
+    const [basicData, setBasicData] = useState<CaseData[]>([]);
+    const [categoryStats, setCategoryStats] = useState<{ finalPrice: number, category: string }[]>([]);
+    const [basicLoading, setBasicLoading] = useState(true);
+    const [categoryLoading, setCategoryLoading] = useState(true);
 
-    // Removed useEffect fetching logic
+    useEffect(() => {
+        let mounted = true;
 
+        // 1. Load Basic Data (Instant)
+        const loadBasic = async () => {
+            try {
+                const data = await getBasicAnalytics();
+                if (mounted) {
+                    setBasicData(data);
+                    setBasicLoading(false);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
+        // 2. Load Category Stats (Lazy)
+        const loadCategory = async () => {
+            try {
+                const data = await getCategoryStats();
+                if (mounted) {
+                    setCategoryStats(data);
+                    setCategoryLoading(false);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
+        loadBasic();
+        setTimeout(loadCategory, 0);
+
+        const sub = subscribeToCases(async () => {
+            const basic = await getBasicAnalytics();
+            if (mounted) setBasicData(basic);
+
+            const cats = await getCategoryStats();
+            if (mounted) setCategoryStats(cats);
+        });
+
+        return () => {
+            mounted = false;
+            sub.unsubscribe();
+        };
+    }, []);
 
     const metrics = useMemo(() => {
-        const assessmentCases = cases.filter(c => c.status === CaseStatus.ASSESSMENT || c.status === CaseStatus.NEW).length;
+        const assessmentCases = basicData.filter(c => c.status === CaseStatus.ASSESSMENT || c.status === CaseStatus.NEW).length;
         const activeStatuses = [CaseStatus.DEPOSIT_RECEIVED, CaseStatus.PLANNING, CaseStatus.CONSTRUCTION, CaseStatus.FINAL_PAYMENT, CaseStatus.PROGRESS];
-        const activeCases = cases.filter(c => activeStatuses.includes(c.status as CaseStatus)).length;
-        const warrantyCases = cases.filter(c => c.status === CaseStatus.WARRANTY).length;
-        const totalRevenue = cases.reduce((sum, c) => sum + (c.finalPrice || 0), 0);
+        const activeCases = basicData.filter(c => activeStatuses.includes(c.status as CaseStatus)).length;
+        const warrantyCases = basicData.filter(c => c.status === CaseStatus.WARRANTY).length;
+        const totalRevenue = basicData.reduce((sum, c) => sum + (c.finalPrice || 0), 0);
 
         return { assessmentCases, activeCases, warrantyCases, totalRevenue };
-    }, [cases]);
+    }, [basicData]);
 
     const statusData = useMemo(() => {
-        const counts = cases.reduce((acc, c) => {
+        const counts = basicData.reduce((acc, c) => {
             acc[c.status] = (acc[c.status] || 0) + 1;
             return acc;
         }, {} as Record<string, number>);
@@ -42,12 +86,11 @@ export const DataCenter: React.FC<DataCenterProps> = ({ cases = [], onNavigate }
             { name: '已完工 / Done', value: counts[CaseStatus.DONE] || 0, color: '#22c55e' },
             { name: '保固中 / Warranty', value: counts[CaseStatus.WARRANTY] || 0, color: '#a855f7' },
         ].filter(d => d.value > 0);
-    }, [cases]);
+    }, [basicData]);
 
     const categoryData = useMemo(() => {
-        // Group by first zone category as a proxy for case type
-        const groups = cases.reduce((acc, c) => {
-            const cat = c.zones?.[0]?.category || 'Unknown';
+        const groups = categoryStats.reduce((acc, c) => {
+            const cat = c.category || 'Unknown';
             if (!acc[cat]) acc[cat] = { name: cat, value: 0, count: 0 };
             acc[cat].value += (c.finalPrice || 0);
             acc[cat].count += 1;
@@ -55,7 +98,7 @@ export const DataCenter: React.FC<DataCenterProps> = ({ cases = [], onNavigate }
         }, {} as Record<string, { name: string, value: number, count: number }>);
 
         return Object.values(groups).sort((a: any, b: any) => b.value - a.value);
-    }, [cases]);
+    }, [categoryStats]);
 
     return (
         <Layout
@@ -64,25 +107,31 @@ export const DataCenter: React.FC<DataCenterProps> = ({ cases = [], onNavigate }
             currentView="datacenter"
         >
             <div className="space-y-6 animate-in fade-in duration-500">
-                <OverviewTab cases={cases} metrics={metrics} statusData={statusData} categoryData={categoryData} loading={false} />
+                <OverviewTab
+                    metrics={metrics}
+                    statusData={statusData}
+                    categoryData={categoryData}
+                    basicLoading={basicLoading}
+                    categoryLoading={categoryLoading}
+                />
             </div>
         </Layout>
     );
 };
 
-const OverviewTab = ({ cases, metrics, statusData, categoryData, loading }: any) => (
+const OverviewTab = ({ metrics, statusData, categoryData, basicLoading, categoryLoading }: any) => (
     <div className="space-y-8 animate-in slide-in-from-right duration-300">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <MetricCard icon={<FolderOpen size={20} />} label="評估中 / ASSESSMENT" value={metrics.assessmentCases} subtext="New Leads" loading={loading} />
-            <MetricCard icon={<Activity size={20} />} label="進行中 / ACTIVE" value={metrics.activeCases} subtext="In Progress" loading={loading} />
-            <MetricCard icon={<Shield size={20} />} label="保固中 / WARRANTY" value={metrics.warrantyCases} subtext="Completed" loading={loading} />
-            <MetricCard icon={<TrendingUp size={20} />} label="預估總營收 / REVENUE" value={metrics.totalRevenue} prefix="$" subtext="Total Value" highlight loading={loading} />
+            <MetricCard icon={<FolderOpen size={20} />} label="評估中 / ASSESSMENT" value={metrics.assessmentCases} subtext="New Leads" loading={basicLoading} />
+            <MetricCard icon={<Activity size={20} />} label="進行中 / ACTIVE" value={metrics.activeCases} subtext="In Progress" loading={basicLoading} />
+            <MetricCard icon={<Shield size={20} />} label="保固中 / WARRANTY" value={metrics.warrantyCases} subtext="Completed" loading={basicLoading} />
+            <MetricCard icon={<TrendingUp size={20} />} label="預估總營收 / REVENUE" value={metrics.totalRevenue} prefix="$" subtext="Total Value" highlight loading={basicLoading} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <Card title="案件狀態分佈 / STATUS DISTRIBUTION">
                 <div className="h-[300px] w-full flex items-center justify-center">
-                    {loading ? (
+                    {basicLoading ? (
                         <div className="w-full h-full bg-zinc-50 animate-pulse rounded-full scale-75 opacity-50"></div>
                     ) : statusData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
@@ -112,7 +161,7 @@ const OverviewTab = ({ cases, metrics, statusData, categoryData, loading }: any)
 
             <Card title="工程類別營收排行 / REVENUE BY CATEGORY">
                 <div className="h-[300px] w-full min-h-[300px]">
-                    {loading ? (
+                    {categoryLoading ? (
                         <div className="space-y-4 pt-4 px-4 w-full h-full flex flex-col justify-center animate-pulse">
                             {[1, 2, 3, 4, 5].map(i => (
                                 <div key={i} className="flex gap-4 items-center">

@@ -28,7 +28,7 @@ export const getCases = async (): Promise<CaseData[]> => {
   // Unified fetch for App-level caching (includes zones for DataCenter)
   const { data, error } = await supabase
     .from('cases')
-    .select('caseId, createdDate, customerName, phone, lineId, address, status, finalPrice, manualPriceAdjustment, zones');
+    .select('caseId, createdDate, customerName, phone, lineId, address, status, finalPrice, manualPriceAdjustment');
 
   if (error) {
     console.error('Error fetching cases:', error);
@@ -51,19 +51,45 @@ export const getCaseDetails = async (caseId: string): Promise<CaseData | null> =
   return data;
 };
 
-export const getAnalyticsData = async (): Promise<CaseData[]> => {
-  // Fetches data for DataCenter. 
-  // We need zones to determine Category, but we DON'T need logs or schedule.
-  // This avoids downloading heavy daily logs/photos.
+export const getBasicAnalytics = async (): Promise<CaseData[]> => {
+  // Extremely lightweight fetch for high-speed dashboard loading
+  // Excludes 'zones' which contains heavy image data
   const { data, error } = await supabase
     .from('cases')
-    .select('caseId, status, finalPrice, zones, createdDate');
+    .select('caseId, status, finalPrice, createdDate');
 
   if (error) {
-    console.error('Error fetching analytics data:', error);
+    console.error('Error fetching basic analytics:', error);
     throw error;
   }
   return (data || []) as CaseData[];
+};
+
+export const getCategoryStats = async (): Promise<{ finalPrice: number, category: string }[]> => {
+  // Senior Optimization: 
+  // We fetch 'zones' separately. Ideally we would use ->> JSON operator here like:
+  // .select('finalPrice, category:zones->0->>category')
+  // But to ensure compatibility without checking server version, we fetch zones here
+  // but we do it asynchronously so it doesn't block the main stats.
+  // 
+  // Ideally: .select('finalPrice, zones->0->>category')
+  // Let's try to fetch just the top level structure if possible, but 'zones' is a single column.
+  // We will accept the payload penalty here BUT it runs in parallel/lazy in the UI.
+
+  const { data, error } = await supabase
+    .from('cases')
+    .select('finalPrice, zones');
+
+  if (error) {
+    console.error('Error fetching category stats:', error);
+    return [];
+  }
+
+  // Flatten to lightweight object
+  return (data || []).map((row: any) => ({
+    finalPrice: row.finalPrice,
+    category: row.zones?.[0]?.category || 'Unknown'
+  }));
 };
 
 export const subscribeToCases = (callback: () => void) => {
@@ -253,4 +279,25 @@ export const getInitialCase = async (clientName: string, phone: string, address:
     logs: [],
     warrantyRecords: []
   };
+};
+
+export const uploadImage = async (file: File): Promise<string> => {
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+  const filePath = `${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('case-photos')
+    .upload(filePath, file);
+
+  if (uploadError) {
+    console.error('Error uploading image:', uploadError);
+    throw uploadError;
+  }
+
+  const { data } = supabase.storage
+    .from('case-photos')
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
 };

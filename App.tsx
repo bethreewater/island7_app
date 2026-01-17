@@ -2,6 +2,7 @@ import React, { useState, Suspense } from 'react';
 import { CaseData } from './types';
 import { supabase } from './services/supabaseClient';
 import { Session } from '@supabase/supabase-js';
+import { Toaster } from 'react-hot-toast';
 
 import { Dashboard } from './pages/Dashboard';
 import { CaseDetail } from './pages/CaseDetail';
@@ -23,7 +24,9 @@ const App: React.FC = () => {
   const [view, setView] = useState<'dashboard' | 'detail' | 'kb' | 'datacenter' | 'settings'>('dashboard');
   const [selectedCase, setSelectedCase] = useState<CaseData | null>(null);
   const [cases, setCases] = useState<CaseData[]>([]);
+  const [isDataLoading, setIsDataLoading] = useState(false);
 
+  // Auth Listener
   React.useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -35,23 +38,44 @@ const App: React.FC = () => {
       setSession(session);
     });
 
-    // Initial Data Load (Global)
-    const loadGlobalData = async () => {
-      await initDB();
-      const data = await getCases();
-      setCases(data.sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime()));
-    };
-    loadGlobalData();
+    return () => subscription.unsubscribe();
+  }, []);
 
-    const dataSub = subscribeToCases(() => {
-      loadGlobalData();
+  // Data Loading Effect
+  React.useEffect(() => {
+    if (!session) return;
+
+    let mounted = true;
+
+    const loadData = async () => {
+      setIsDataLoading(true);
+      try {
+        await initDB();
+        const data = await getCases();
+        if (mounted) {
+          setCases(data.sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime()));
+        }
+      } catch (error) {
+        console.error('Failed to load data:', error);
+      } finally {
+        if (mounted) setIsDataLoading(false);
+      }
+    };
+
+    loadData();
+
+    const dataSub = subscribeToCases(async () => {
+      const data = await getCases();
+      if (mounted) {
+        setCases(data.sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime()));
+      }
     });
 
     return () => {
-      subscription.unsubscribe();
+      mounted = false;
       dataSub.unsubscribe();
     };
-  }, []);
+  }, [session]);
 
   const handleCaseSelect = (caseData: CaseData) => {
     setSelectedCase(caseData);
@@ -70,8 +94,38 @@ const App: React.FC = () => {
     );
   }
 
+  if (isDataLoading) {
+    return <LoadingFallback />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#18181b',
+            color: '#fff',
+            fontWeight: 900,
+            fontSize: '11px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+          },
+          success: {
+            iconTheme: {
+              primary: '#10b981',
+              secondary: '#fff',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#ef4444',
+              secondary: '#fff',
+            },
+          },
+        }}
+      />
       {view === 'dashboard' && <Dashboard cases={cases} onSelectCase={handleCaseSelect} onOpenKB={() => setView('kb')} onNavigate={handleNavigate} />}
       {view === 'kb' && <KnowledgeBase onBack={() => setView('dashboard')} onNavigate={handleNavigate} />}
       {view === 'detail' && selectedCase && <CaseDetail caseData={selectedCase} onBack={() => setView('dashboard')} onUpdate={setSelectedCase} />}

@@ -1,5 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { Layout } from '../components/Layout';
 import { Card, Button } from '../components/InputComponents';
 import { getCases, getMethods } from '../services/storageService';
@@ -48,7 +48,7 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate }) => {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         } catch (e) {
-            alert('匯出失敗 / Export Failed');
+            toast.error('匯出失敗 / Export Failed', { duration: 5000 });
         }
     };
 
