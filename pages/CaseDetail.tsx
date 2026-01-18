@@ -393,14 +393,20 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
         )}
       </div>
 
-      {/* 手機版底部 Tab 導航 */}
+      {/* 手機版底部 Tab 導航 - 可滑動 */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-zinc-200 shadow-[0_-4px_12px_rgba(0,0,0,0.1)] lg:hidden z-[80] safe-area-inset-bottom">
-        <div className="flex justify-around items-center h-16 px-2">
+        <div className="flex overflow-x-auto no-scrollbar px-2 h-16">
           <MobileTabButton
             icon={<Calculator size={20} />}
             label="評估"
             active={activeTab === 'eval'}
             onClick={() => setActiveTab('eval')}
+          />
+          <MobileTabButton
+            icon={<FileCheck size={20} />}
+            label="報價"
+            active={activeTab === 'quote'}
+            onClick={() => setActiveTab('quote')}
           />
           <MobileTabButton
             icon={<Edit size={20} />}
@@ -419,6 +425,12 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
             label="工期"
             active={activeTab === 'schedule'}
             onClick={() => setActiveTab('schedule')}
+          />
+          <MobileTabButton
+            icon={<ShieldCheck size={20} />}
+            label="保固"
+            active={activeTab === 'warranty'}
+            onClick={() => setActiveTab('warranty')}
           />
         </div>
       </nav>
