@@ -4,8 +4,8 @@ import toast from 'react-hot-toast';
 import { Layout } from '../components/Layout';
 import { Card, Button, Input, Select } from '../components/InputComponents';
 import { QuickCalculator } from '../components/QuickCalculator';
-import { MethodItem, ServiceCategory, MethodStep, Material, MethodRecipe } from '../types';
-import { getMethods, saveMethod, deleteMethod, getMaterials, getRecipes, upsertRecipe, deleteRecipe } from '../services/storageService';
+import { MethodItem, ServiceCategory, MethodStep, Material, MethodRecipe, MaterialCategory } from '../types';
+import { getMethods, saveMethod, deleteMethod, getMaterials, getRecipes, upsertRecipe, deleteRecipe, upsertMaterial, deleteMaterial } from '../services/storageService';
 import { Plus, Trash2, Save, ChevronRight, Layers, Clock, ArrowLeft, FolderOpen } from 'lucide-react';
 
 
@@ -191,10 +191,227 @@ const RecipeManager = ({ methodId }: { methodId: string }) => {
   );
 };
 
+// -- MaterialManager Component --
+const MaterialManager = () => {
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Editing State
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<Material>>({});
+
+  // Category Filter
+  const [selectedCategory, setSelectedCategory] = useState<MaterialCategory | 'ALL'>('ALL');
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const load = async () => {
+    const data = await getMaterials();
+    setMaterials(data);
+  };
+
+  const handleSave = async () => {
+    if (!editForm.name || !editForm.unit || !editForm.unitPrice) {
+      toast.error('請填寫完整資料');
+      return;
+    }
+
+    const toSave: Material = {
+      id: editingId || `MAT-${Date.now()}`,
+      name: editForm.name,
+      brand: editForm.brand || '',
+      category: editForm.category || MaterialCategory.OTHER,
+      unit: editForm.unit,
+      unitPrice: editForm.unitPrice,
+      costPerVal: 0, // Not used yet
+      updatedAt: new Date().toISOString()
+    };
+
+    await upsertMaterial(toSave);
+    toast.success(editingId ? '材料已更新' : '材料已新增');
+    setEditingId(null);
+    setEditForm({});
+    setShowAdd(false);
+    load();
+  };
+
+  const handleEdit = (m: Material) => {
+    setEditingId(m.id);
+    setEditForm({ ...m });
+    setShowAdd(true);
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    if (confirm(`確定刪除材料「${name}」？\n注意：已使用此材料的配方將會受到影響。`)) {
+      await deleteMaterial(id);
+      toast.success('材料已刪除');
+      load();
+    }
+  };
+
+  const filteredMaterials = materials.filter(m =>
+    (m.name.includes(searchTerm) || m.brand?.includes(searchTerm)) &&
+    (selectedCategory === 'ALL' || (m.category || MaterialCategory.OTHER) === selectedCategory)
+  );
+
+  // Group materials by category if viewing ALL
+  const groupedMaterials = useMemo<Record<string, Material[]> | null>(() => {
+    if (selectedCategory !== 'ALL') return null;
+
+    const groups: Record<string, Material[]> = {};
+    Object.values(MaterialCategory).forEach(cat => groups[cat] = []);
+    groups['Uncategorized'] = [];
+
+    filteredMaterials.forEach(m => {
+      const cat = (m.category as string) || 'Uncategorized';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(m);
+    });
+
+    return groups;
+  }, [filteredMaterials, selectedCategory]);
+
+  return (
+    <div className="space-y-6 pb-20">
+      <div className="flex justify-between items-end">
+        <div>
+          <h2 className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Central Database</h2>
+          <div className="text-3xl font-black text-blue-900 tracking-tighter">備料中心 / MATERIALS</div>
+        </div>
+        <Button onClick={() => { setEditingId(null); setEditForm({ unit: '桶', unitPrice: 0, category: MaterialCategory.PAINT }); setShowAdd(true); }} className="flex gap-3 bg-blue-600 px-6 font-black uppercase text-[10px] tracking-[0.2em] py-4"><Plus size={18} /> 新增材料 / NEW MATERIAL</Button>
+      </div>
+
+      {/* Actions Bar */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex-1 relative">
+          <input
+            className="w-full bg-white border border-zinc-200 rounded-sm py-3 px-4 font-bold text-sm outline-none focus:border-blue-500 transition-colors"
+            placeholder="搜尋材料名稱或品牌..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
+        </div>
+        {/* Category Filter Pills */}
+        <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+          <button
+            onClick={() => setSelectedCategory('ALL')}
+            className={`whitespace-nowrap px-4 py-2 rounded-full text-xs font-black uppercase transition-all ${selectedCategory === 'ALL' ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-zinc-200 text-zinc-500 hover:border-blue-300'}`}
+          >
+            全部 / ALL
+          </button>
+          {Object.values(MaterialCategory).map(cat => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`whitespace-nowrap px-4 py-2 rounded-full text-xs font-black uppercase transition-all ${selectedCategory === cat ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-zinc-200 text-zinc-500 hover:border-blue-300'}`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Add/Edit Modal (Inline for now) */}
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-blue-600 p-4 flex justify-between items-center text-white">
+              <h3 className="font-black text-sm uppercase tracking-widest">{editingId ? '編輯材料' : '新增材料'} / {editingId ? 'EDIT' : 'NEW'}</h3>
+              <button onClick={() => setShowAdd(false)} className="hover:bg-blue-700 p-1 rounded"><Trash2 className="opacity-0" size={16} />✕</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <Input label="材料名稱 / NAME" value={editForm.name || ''} onChange={e => setEditForm({ ...editForm, name: e.target.value })} placeholder="例如：得利全效乳膠漆" />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1 block">分類 / CATEGORY</label>
+                  <select
+                    className="w-full bg-white border border-zinc-200 rounded-sm p-2 text-sm font-bold outline-none"
+                    value={editForm.category || MaterialCategory.OTHER}
+                    onChange={e => setEditForm({ ...editForm, category: e.target.value as MaterialCategory })}
+                  >
+                    {Object.values(MaterialCategory).map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+                <Input label="品牌 (選填) / BRAND" value={editForm.brand || ''} onChange={e => setEditForm({ ...editForm, brand: e.target.value })} placeholder="例如：Dulux" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="單位 / UNIT" value={editForm.unit || ''} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} placeholder="桶、包、支" />
+                <Input label="單價 / PRICE" type="number" value={editForm.unitPrice || ''} onChange={e => setEditForm({ ...editForm, unitPrice: Number(e.target.value) })} />
+              </div>
+            </div>
+            <div className="bg-zinc-50 p-4 flex justify-end gap-3 border-t border-zinc-100">
+              <Button variant="outline" onClick={() => setShowAdd(false)}>取消</Button>
+              <Button onClick={handleSave} className="bg-blue-600 px-8">儲存</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedCategory === 'ALL' && groupedMaterials ? (
+        <div className="space-y-12">
+          {Object.entries(groupedMaterials).map(([cat, items]) => (
+            (items as Material[]).length > 0 && (
+              <div key={cat}>
+                <div className="flex items-center gap-3 border-b-2 border-zinc-100 pb-2 mb-4">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <h3 className="font-black text-lg text-zinc-800 tracking-tight uppercase">{cat}</h3>
+                  <span className="bg-zinc-100 text-zinc-400 text-[9px] font-black px-2 py-0.5 rounded-full">{(items as Material[]).length}</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {(items as Material[]).map((m: Material) => <MaterialCard key={m.id} material={m} onEdit={handleEdit} onDelete={handleDelete} />)}
+                </div>
+              </div>
+            )
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredMaterials.map(m => <MaterialCard key={m.id} material={m} onEdit={handleEdit} onDelete={handleDelete} />)}
+        </div>
+      )}
+
+      {filteredMaterials.length === 0 && (
+        <div className="text-center py-20 bg-zinc-50 border border-dashed border-zinc-200 rounded text-zinc-400 text-xs font-black uppercase tracking-widest">
+          No Materials Found
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Sub-component for Card
+const MaterialCard: React.FC<{ material: Material, onEdit: (m: Material) => void, onDelete: (id: string, name: string) => void }> = ({ material: m, onEdit, onDelete }) => (
+  <div className="group bg-white border border-zinc-200 rounded-sm p-4 hover:border-blue-500 transition-all shadow-sm flex flex-col justify-between h-[140px]">
+    <div>
+      <div className="flex justify-between items-start">
+        <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1">{m.brand || 'NO BRAND'}</div>
+        <div className="text-[8px] font-black text-blue-300 uppercase tracking-widest bg-blue-50 px-1.5 rounded">{m.category || '未分類'}</div>
+      </div>
+      <h4 className="font-bold text-lg text-zinc-800 line-clamp-2 mt-1">{m.name}</h4>
+    </div>
+    <div className="flex justify-between items-end border-t border-zinc-50 pt-3 mt-2">
+      <div className="font-mono font-bold text-blue-600">
+        ${m.unitPrice.toLocaleString()} <span className="text-zinc-400 text-[10px] font-normal">/ {m.unit}</span>
+      </div>
+      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button onClick={() => onEdit(m)} className="text-zinc-400 hover:text-blue-600 transition-colors p-1"><Save size={14} /></button>
+        <button onClick={() => onDelete(m.id, m.name)} className="text-zinc-400 hover:text-red-500 transition-colors p-1"><Trash2 size={14} /></button>
+      </div>
+    </div>
+  </div>
+);
+
 
 export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: 'dashboard' | 'datacenter' | 'settings') => void }> = ({ onBack, onNavigate }) => {
+  const [activeTab, setActiveTab] = useState<'schemes' | 'materials'>('schemes');
   const [methods, setMethods] = useState<MethodItem[]>([]);
-
   const [editingMethod, setEditingMethod] = useState<MethodItem | null>(null);
 
   useEffect(() => {
@@ -262,7 +479,29 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: 'd
 
   return (
     <Layout title="知識庫 / KNOWLEDGE BASE" onBack={onBack} onNavigate={onNavigate}>
-      {editingMethod ? (
+      {/* Top Tab Bar */}
+      <div className="flex justify-center mb-8 border-b border-zinc-100">
+        <div className="flex gap-8">
+          <button
+            onClick={() => setActiveTab('schemes')}
+            className={`pb-3 text-xs font-black uppercase tracking-widest transition-colors border-b-2 ${activeTab === 'schemes' ? 'border-black text-black' : 'border-transparent text-zinc-400 hover:text-zinc-600'}`}
+          >
+            工程方案 / SCHEMES
+          </button>
+          <button
+            onClick={() => setActiveTab('materials')}
+            className={`pb-3 text-xs font-black uppercase tracking-widest transition-colors border-b-2 ${activeTab === 'materials' ? 'border-blue-600 text-blue-600' : 'border-transparent text-zinc-400 hover:text-zinc-600'}`}
+          >
+            備料中心 / MATERIALS
+          </button>
+        </div>
+      </div>
+
+      {activeTab === 'materials' ? (
+        <div className="animate-in fade-in duration-300">
+          <MaterialManager />
+        </div>
+      ) : editingMethod ? (
         <div className="space-y-6 animate-in slide-in-from-right duration-300 pb-20">
           <div className="flex justify-between items-center">
             <button onClick={() => setEditingMethod(null)} className="text-gray-400 hover:text-black flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">

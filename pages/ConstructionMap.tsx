@@ -164,7 +164,7 @@ export const ConstructionMap: React.FC<ConstructionMapProps> = ({
 
     return (
         <Layout title="施工地圖 / CONSTRUCTION MAP" onNavigate={onNavigate} currentView="map">
-            <div className="space-y-4 relative h-[calc(100vh-140px)] md:h-auto">
+            <div className="space-y-4 relative h-[calc(100dvh-140px)] md:h-auto">
 
                 {/* 地圖容器 - 全螢幕適應 */}
                 <div className="absolute inset-0 md:relative md:h-[600px] bg-zinc-100 md:rounded-lg shadow-lg overflow-hidden border-t md:border border-zinc-200">

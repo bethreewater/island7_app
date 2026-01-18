@@ -134,10 +134,22 @@ export interface CaseData {
   changeOrders: any[];
 }
 
+// Material Categories
+export enum MaterialCategory {
+  PAINT = '塗料',
+  WATERPROOF = '防水材',
+  CEMENT = '泥作/結構',
+  TOOLS = '工具/設備',
+  SILICONE = '填縫/矽利康',
+  CONSUMABLE = '其他耗材',
+  OTHER = '其他'
+}
+
 export interface Material {
   id: string;
   name: string;
   brand: string;
+  category?: MaterialCategory | string; // Optional for backward compatibility
   unit: string;
   unitPrice: number;
   costPerVal: number;
