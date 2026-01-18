@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, ZoomControl } from 'react-leaflet';
+import React, { useMemo, useEffect, useRef } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Layout } from '../components/Layout';
 import { CaseData, CaseStatus, STATUS_LABELS } from '../types';
@@ -26,6 +26,22 @@ const STATUS_COLORS: Record<CaseStatus | string, string> = {
     [CaseStatus.NEW]: '#3b82f6',
     [CaseStatus.PROGRESS]: '#ef4444',
     [CaseStatus.DONE]: '#10b981',
+};
+
+// 修復地圖渲染問題的輔助元件
+const MapResizeFix: React.FC = () => {
+    const map = useMap();
+
+    useEffect(() => {
+        // 延遲呼叫 invalidateSize 確保地圖容器已完全渲染
+        const timer = setTimeout(() => {
+            map.invalidateSize();
+        }, 100);
+
+        return () => clearTimeout(timer);
+    }, [map]);
+
+    return null;
 };
 
 interface ConstructionMapProps {
@@ -77,7 +93,7 @@ export const ConstructionMap: React.FC<ConstructionMapProps> = ({
     };
 
     return (
-        <Layout title="施工地圖 / CONSTRUCTION MAP" onNavigate={onNavigate} currentView="dashboard">
+        <Layout title="施工地圖 / CONSTRUCTION MAP" onNavigate={onNavigate} currentView="map">
             <div className="space-y-4">
                 {/* 圖例 */}
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-zinc-200">
@@ -119,6 +135,7 @@ export const ConstructionMap: React.FC<ConstructionMapProps> = ({
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                         />
                         <ZoomControl position="topright" />
+                        <MapResizeFix />
 
                         {casesWithLocation.map(caseData => (
                             <Marker
