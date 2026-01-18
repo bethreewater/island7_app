@@ -10,6 +10,7 @@ import { KnowledgeBase } from './pages/KnowledgeBase';
 import { DataCenter } from './pages/DataCenter';
 import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
+import { NetworkStatusIndicator } from './components/NetworkStatusIndicator';
 import { getCases, subscribeToCases, initDB } from './services/storageService';
 
 const LoadingFallback = () => (
@@ -100,6 +101,9 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Network Status Indicator */}
+      <NetworkStatusIndicator />
+
       <Toaster
         position="top-right"
         toastOptions={{

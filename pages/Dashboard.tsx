@@ -6,6 +6,7 @@ import { CaseData, CaseStatus, STATUS_LABELS } from '../types';
 import { getCases, getInitialCase, saveCase, deleteCase, initDB, subscribeToCases, getCaseDetails } from '../services/storageService';
 import { Button, Card, Input } from '../components/InputComponents';
 import { Layout } from '../components/Layout';
+import { TodayTasks } from '../components/TodayTasks';
 
 interface DashboardProps {
   cases: CaseData[];
@@ -157,6 +158,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
       currentView="dashboard"
     >
       <div className="space-y-8 animate-in fade-in duration-500">
+
+        {/* Today's Tasks Widget */}
+        <TodayTasks cases={cases} onSelectCase={handleCaseClick} />
 
         {/* 數據卡片 / COMPACT STATS FOR MOBILE */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">

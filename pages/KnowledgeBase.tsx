@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { Layout } from '../components/Layout';
 import { Card, Button, Input, Select } from '../components/InputComponents';
+import { QuickCalculator } from '../components/QuickCalculator';
 import { MethodItem, ServiceCategory, MethodStep, Material, MethodRecipe } from '../types';
 import { getMethods, saveMethod, deleteMethod, getMaterials, getRecipes, upsertRecipe, deleteRecipe } from '../services/storageService';
 import { Plus, Trash2, Save, ChevronRight, Layers, Clock, ArrowLeft, FolderOpen } from 'lucide-react';
@@ -316,7 +317,10 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: 'd
 
         </div>
       ) : (
-        <div className="space-y-12 pb-20">
+        <div className="space-y-8 pb-20">
+          {/* Quick Calculator Widget */}
+          <QuickCalculator />
+
           <div className="flex justify-between items-end">
             <div>
               <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Standardized Database</h2>

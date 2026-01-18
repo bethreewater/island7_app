@@ -8,17 +8,30 @@ import { ScheduleTask, ConstructionLog } from '../../types';
 import { Button, Card, Input, Select, ImageUploader } from '../InputComponents';
 import { STANDARD_LOG_ACTIONS } from '../../constants';
 
-// Helper Components
-const PunchButton = ({ label, subLabel, icon, active, onClick }: { label: string, subLabel: string, icon: React.ReactNode, active: boolean, onClick: () => void }) => (
-    <button
-        onClick={onClick}
-        className={`flex flex-col items-center justify-center py-4 px-2 rounded-sm border-2 transition-all active:scale-95 ${active ? 'bg-zinc-950 border-zinc-950 text-white shadow-lg' : 'bg-white border-zinc-100 text-zinc-300 hover:border-zinc-950 hover:text-zinc-950'}`}
-    >
-        <div className="mb-1.5">{active ? <CheckCircle2 size={18} /> : icon}</div>
-        <span className="text-[11px] font-black leading-none">{label}</span>
-        <span className="text-[7px] font-black tracking-widest opacity-40 mt-1 uppercase">{subLabel}</span>
-    </button>
-);
+// Helper Components - Responsive buttons (auto Field Mode on mobile)
+const PunchButton = ({ label, subLabel, icon, active, onClick }: { label: string, subLabel: string, icon: React.ReactNode, active: boolean, onClick: () => void }) => {
+    // Clone icon with responsive classes
+    const iconClasses = "w-8 h-8 md:w-[18px] md:h-[18px]";
+    const iconElement = React.cloneElement(icon as React.ReactElement, { className: iconClasses });
+
+    return (
+        <button
+            onClick={onClick}
+            className={`flex flex-col items-center justify-center rounded-sm border-2 transition-all active:scale-95
+                py-8 px-4 md:py-4 md:px-2  // Mobile: Large, Desktop: Normal
+                ${active
+                    ? 'bg-zinc-950 border-zinc-950 text-white shadow-lg'
+                    : 'bg-white border-zinc-100 text-zinc-300 hover:border-zinc-950 hover:text-zinc-950'
+                }`}
+        >
+            <div className="mb-3 md:mb-1.5">
+                {active ? <CheckCircle2 className={iconClasses} /> : iconElement}
+            </div>
+            <span className="font-black leading-none text-base md:text-[11px]">{label}</span>
+            <span className="font-black tracking-widest opacity-40 uppercase text-[10px] md:text-[7px] mt-2 md:mt-1">{subLabel}</span>
+        </button>
+    );
+};
 
 const PhotoGroup = ({ label, photos }: { label: string, photos: string[] }) => (
     <div className="space-y-2">
@@ -232,28 +245,28 @@ export const ConstructionLogTab: React.FC<{
                                         <PunchButton
                                             label="開始施工"
                                             subLabel="START"
-                                            icon={<Play size={18} />}
+                                            icon={<Play />}
                                             active={!!logForm.startTime}
                                             onClick={() => setLogForm({ ...logForm, startTime: getCurrentTime() })}
                                         />
                                         <PunchButton
                                             label="休息開始"
                                             subLabel="BREAK-S"
-                                            icon={<Pause size={18} />}
+                                            icon={<Pause />}
                                             active={isBreakActive}
                                             onClick={handleBreakStart}
                                         />
                                         <PunchButton
                                             label="休息結束"
                                             subLabel="BREAK-E"
-                                            icon={<SkipForward size={18} />}
+                                            icon={<SkipForward />}
                                             active={logForm.breaks?.length > 0 && !isBreakActive}
                                             onClick={handleBreakEnd}
                                         />
                                         <PunchButton
                                             label="完工結束"
                                             subLabel="FINISH"
-                                            icon={<Square size={18} />}
+                                            icon={<Square />}
                                             active={!!logForm.endTime}
                                             onClick={() => setLogForm({ ...logForm, endTime: getCurrentTime() })}
                                         />

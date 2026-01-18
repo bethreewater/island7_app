@@ -2,10 +2,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/InputComponents';
-import { getBasicAnalytics, getCategoryStats, subscribeToCases } from '../services/storageService';
-import { CaseData, CaseStatus, ServiceCategory } from '../types';
+import { getBasicAnalytics, getCategoryStats, subscribeToCases, getMethods } from '../services/storageService';
+import { CaseData, CaseStatus, ServiceCategory, MethodItem } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { Calculator, TrendingUp, Users, Activity, Shield, FolderOpen } from 'lucide-react';
+import { Calculator, TrendingUp, Users, Activity, Shield, FolderOpen, AlertTriangle, Clock } from 'lucide-react';
+import {
+    analyzeMethodPerformance,
+    getDelayedCases,
+    calculateOverallOnTimeRate,
+    calculateAvgConstructionDays,
+    MethodPerformance,
+    DelayedCaseInfo
+} from '../services/analyticsService';
 
 
 interface DataCenterProps {
@@ -13,8 +21,10 @@ interface DataCenterProps {
 }
 
 export const DataCenter: React.FC<DataCenterProps> = ({ onNavigate }) => {
+    const [activeTab, setActiveTab] = useState<'overview' | 'efficiency'>('overview');
     const [basicData, setBasicData] = useState<CaseData[]>([]);
     const [categoryStats, setCategoryStats] = useState<{ finalPrice: number, category: string }[]>([]);
+    const [methods, setMethods] = useState<MethodItem[]>([]);
     const [basicLoading, setBasicLoading] = useState(true);
     const [categoryLoading, setCategoryLoading] = useState(true);
 
@@ -25,8 +35,10 @@ export const DataCenter: React.FC<DataCenterProps> = ({ onNavigate }) => {
         const loadBasic = async () => {
             try {
                 const data = await getBasicAnalytics();
+                const methodsData = await getMethods();
                 if (mounted) {
                     setBasicData(data);
+                    setMethods(methodsData);
                     setBasicLoading(false);
                 }
             } catch (e) {
@@ -106,14 +118,45 @@ export const DataCenter: React.FC<DataCenterProps> = ({ onNavigate }) => {
             onNavigate={onNavigate}
             currentView="datacenter"
         >
+            {/* Tab 切換 */}
+            <div className="flex gap-4 mb-6 border-b border-zinc-200">
+                <button
+                    onClick={() => setActiveTab('overview')}
+                    className={`px-4 py-3 font-black text-xs uppercase tracking-wider transition-all ${activeTab === 'overview'
+                            ? 'text-zinc-950 border-b-2 border-zinc-950'
+                            : 'text-zinc-400 hover:text-zinc-600'
+                        }`}
+                >
+                    📊 財務總覽
+                </button>
+                <button
+                    onClick={() => setActiveTab('efficiency')}
+                    className={`px-4 py-3 font-black text-xs uppercase tracking-wider transition-all ${activeTab === 'efficiency'
+                            ? 'text-zinc-950 border-b-2 border-zinc-950'
+                            : 'text-zinc-400 hover:text-zinc-600'
+                        }`}
+                >
+                    ⚡ 施工效率
+                </button>
+            </div>
+
             <div className="space-y-6 animate-in fade-in duration-500">
-                <OverviewTab
-                    metrics={metrics}
-                    statusData={statusData}
-                    categoryData={categoryData}
-                    basicLoading={basicLoading}
-                    categoryLoading={categoryLoading}
-                />
+                {activeTab === 'overview' && (
+                    <OverviewTab
+                        metrics={metrics}
+                        statusData={statusData}
+                        categoryData={categoryData}
+                        basicLoading={basicLoading}
+                        categoryLoading={categoryLoading}
+                    />
+                )}
+                {activeTab === 'efficiency' && (
+                    <EfficiencyTab
+                        cases={basicData}
+                        methods={methods}
+                        loading={basicLoading}
+                    />
+                )}
             </div>
         </Layout>
     );
@@ -244,3 +287,147 @@ const MetricCard = ({ icon, label, value, subtext, highlight = false, loading = 
         </div>
     );
 };
+
+// 施工效率分析 Tab
+const EfficiencyTab = ({ cases, methods, loading }: { cases: CaseData[]; methods: MethodItem[]; loading: boolean }) => {
+    const methodPerformance = useMemo(() => analyzeMethodPerformance(cases, methods), [cases, methods]);
+    const delayedCases = useMemo(() => getDelayedCases(cases), [cases]);
+    const avgDays = useMemo(() => calculateAvgConstructionDays(cases), [cases]);
+    const onTimeRate = useMemo(() => calculateOverallOnTimeRate(cases), [cases]);
+
+    if (loading) {
+        return (
+            <div className="animate-pulse space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {[1, 2, 3].map(i => (
+                        <div key={i} className="h-32 bg-zinc-100 rounded-lg"></div>
+                    ))}
+                </div>
+                <div className="h-64 bg-zinc-100 rounded-lg"></div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-8 animate-in slide-in-from-right duration-300">
+            {/* 總覽指標卡片 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <MetricCard 
+                    icon={<Clock size={20} />} 
+                    label="平均施工天數 / AVG DAYS" 
+                    value={avgDays} 
+                    subtext="實際天數"
+                    suffix=" 天"
+                />
+                <MetricCard 
+                    icon={<AlertTriangle size={20} />} 
+                    label="延期案件 / DELAYED" 
+                    value={delayedCases.length} 
+                    subtext="需要關注"
+                    highlight={delayedCases.length > 0}
+                />
+                <MetricCard 
+                    icon={<TrendingUp size={20} />} 
+                    label="整體準時率 / ON-TIME" 
+                    value={onTimeRate.toFixed(1)} 
+                    subtext="完工案件"
+                    prefix=""
+                    suffix="%"
+                />
+            </div>
+
+            {/* 工法準時率圖表 */}
+            {methodPerformance.length > 0 && (
+                <Card title="工法準時完工率 / METHOD ON-TIME RATE">
+                    <MethodPerformanceChart data={methodPerformance} />
+                </Card>
+            )}
+
+            {/* 延期案件列表 */}
+            {delayedCases.length > 0 && (
+                <Card title={`延期案件 (${delayedCases.length}) / DELAYED CASES`}>
+                    <DelayedCasesList cases={delayedCases} />
+                </Card>
+            )}
+
+            {/* 空狀態 */}
+            {methodPerformance.length === 0 && (
+                <div className="text-center py-20 text-zinc-400">
+                    <Activity size={48} className="mx-auto mb-4 opacity-30" />
+                    <div className="font-black text-sm uppercase tracking-widest">
+                        尚無足夠數據進行分析
+                    </div>
+                    <div className="text-xs mt-2 opacity-60">
+                        需要至少一個進行中或已完工的案件
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// 工法準時率圖表元件
+const MethodPerformanceChart = ({ data }: { data: MethodPerformance[] }) => (
+    <div className="space-y-4">
+        {data.map(method => {
+            const barColor = 
+                method.onTimeRate >= 90 ? 'bg-emerald-500' :
+                method.onTimeRate >= 70 ? 'bg-yellow-500' :
+                'bg-red-500';
+
+            return (
+                <div key={method.methodId} className="space-y-2">
+                    <div className="flex justify-between items-baseline">
+                        <div className="flex items-center gap-3">
+                            <span className="font-black text-sm text-zinc-950">{method.methodName}</span>
+                            <span className="text-[10px] text-zinc-400 font-bold">
+                                {method.totalCases} 案件
+                            </span>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-xs text-zinc-500">
+                                準時: {method.onTimeCases} / 延期: {method.delayedCases}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="relative h-8 bg-zinc-100 rounded-sm overflow-hidden">
+                        <div 
+                            className={`h-full transition-all duration-500 ${barColor}`}
+                            style={{ width: `${method.onTimeRate}%` }}
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center text-[11px] font-black text-zinc-950">
+                            {method.onTimeRate.toFixed(1)}%
+                        </span>
+                    </div>
+                    <div className="flex justify-between text-[9px] text-zinc-400 font-bold">
+                        <span>平均施工: {method.avgActualDays} 天</span>
+                        <span>預估: {method.avgExpectedDays} 天</span>
+                    </div>
+                </div>
+            );
+        })}
+    </div>
+);
+
+//延期案件列表元件
+const DelayedCasesList = ({ cases }: { cases: DelayedCaseInfo[] }) => (
+    <div className="space-y-2 max-h-96 overflow-y-auto">
+        {cases.map(c => (
+            <div 
+                key={c.caseId} 
+                className="flex justify-between items-center p-4 bg-red-50 border border-red-200 rounded-sm hover:bg-red-100 transition-colors"
+            >
+                <div className="flex-1">
+                    <div className="font-black text-sm text-zinc-950">{c.customerName}</div>
+                    <div className="text-[10px] text-zinc-500 mt-0.5">
+                        {c.methodName} • {c.caseId}
+                    </div>
+                </div>
+                <div className="text-right">
+                    <div className="text-red-600 font-black text-lg">+{c.delayDays}</div>
+                    <div className="text-[9px] text-red-500 uppercase font-black tracking-wider">天延期</div>
+                </div>
+            </div>
+        ))}
+    </div>
+);

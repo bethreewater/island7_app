@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Calculator, FileCheck, Layers, Calendar as CalendarIcon,
   Wand2, CheckCircle2, ChevronRight, Plus, Eye,
-  FileText, ShieldCheck
+  FileText, ShieldCheck, Package, Edit
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { CaseData, MethodItem, ServiceCategory, CaseStatus, STATUS_LABELS, ScheduleTask } from '../types';
@@ -26,6 +26,30 @@ const TabButton: React.FC<{ active: boolean; onClick: () => void; icon: React.Re
       <span className="text-[6px] font-black uppercase opacity-40 tracking-widest mt-0.5">{label.split(' / ')[1]}</span>
     </div>
     {active && <div className="absolute top-0 left-0 w-full h-0.5 bg-zinc-950"></div>}
+  </button>
+);
+
+// 手機版底部 Tab 按鈕
+const MobileTabButton: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}> = ({ icon, label, active, onClick }) => (
+  <button
+    onClick={onClick}
+    className={`flex flex-col items-center gap-1 py-2 px-3 transition-all ${active
+        ? 'text-blue-600 scale-105'
+        : 'text-zinc-400 hover:text-zinc-700'
+      }`}
+  >
+    {icon}
+    <span className="text-[9px] font-black uppercase tracking-wider">
+      {label}
+    </span>
+    {active && (
+      <div className="w-1 h-1 bg-blue-600 rounded-full mt-0.5" />
+    )}
   </button>
 );
 
@@ -226,7 +250,8 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
         <CaseStatusStepper currentStatus={localData.status} onSetStatus={handleStatusChange} />
       </div>
 
-      <div className="flex border-b border-zinc-100 mb-6 sticky top-16 md:top-28 bg-[#fcfcfc]/90 backdrop-blur-md z-40 shadow-sm overflow-x-auto no-scrollbar">
+      {/* 頂部 Tab - 桌面版專用 */}
+      <div className="hidden md:flex border-b border-zinc-100 mb-6 sticky top-16 md:top-28 bg-[#fcfcfc]/90 backdrop-blur-md z-40 shadow-sm overflow-x-auto no-scrollbar">
         <TabButton active={activeTab === 'eval'} onClick={() => setActiveTab('eval')} icon={<Calculator size={16} />} label="現場評估 / EVAL" />
         <TabButton active={activeTab === 'quote'} onClick={() => setActiveTab('quote')} icon={<FileCheck size={16} />} label="報價結算 / QUOTE" />
         <TabButton active={activeTab === 'mats'} onClick={() => setActiveTab('mats')} icon={<Layers size={16} />} label="備料清單 / MATERIALS" />
@@ -368,7 +393,38 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 w-full bg-white border-t border-zinc-950 p-4 z-[70] md:max-w-7xl md:mx-auto flex justify-between items-center gap-4 shadow-[0_-5px_20px_rgba(0,0,0,0.1)]">
+      {/* 手機版底部 Tab 導航 */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-zinc-200 shadow-[0_-4px_12px_rgba(0,0,0,0.1)] md:hidden z-[80] pb-safe">
+        <div className="flex justify-around items-center h-16 px-2">
+          <MobileTabButton
+            icon={<Calculator size={20} />}
+            label="評估"
+            active={activeTab === 'eval'}
+            onClick={() => setActiveTab('eval')}
+          />
+          <MobileTabButton
+            icon={<Edit size={20} />}
+            label="日誌"
+            active={activeTab === 'log'}
+            onClick={() => setActiveTab('log')}
+          />
+          <MobileTabButton
+            icon={<Package size={20} />}
+            label="備料"
+            active={activeTab === 'mats'}
+            onClick={() => setActiveTab('mats')}
+          />
+          <MobileTabButton
+            icon={<CalendarIcon size={20} />}
+            label="工期"
+            active={activeTab === 'schedule'}
+            onClick={() => setActiveTab('schedule')}
+          />
+        </div>
+      </nav>
+
+      {/* 桌面版底部總價欄 */}
+      <div className="hidden md:flex fixed bottom-0 left-0 w-full bg-white border-t border-zinc-950 p-4 z-[70] md:max-w-7xl md:mx-auto justify-between items-center gap-4 shadow-[0_-5px_20px_rgba(0,0,0,0.1)]">
         <div className="flex flex-col">
           <div className="text-[7px] text-zinc-400 font-black uppercase tracking-widest leading-none mb-1">FINAL TOTAL / 結算</div>
           <div className="font-black text-xl text-zinc-950 leading-none">${(calculatedTotal + localData.manualPriceAdjustment).toLocaleString()}</div>

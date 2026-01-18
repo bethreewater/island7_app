@@ -19,8 +19,18 @@ export const MaterialList: React.FC<{ zones: Zone[] }> = ({ zones }) => {
         const totals: Record<string, { name: string, unit: string, qty: number, category: string, cost: number }> = {};
 
         zones.forEach(zone => {
+            // Skip zones with no items - they shouldn't generate any material requirements
+            if (!zone.items || zone.items.length === 0) {
+                return;
+            }
+
             const zoneRecipes = recipes.filter(r => r.methodId === zone.methodId);
-            const zoneArea = zone.items.reduce((sum, item) => sum + (item.areaPing || 0), 0) || 1;
+            const zoneArea = zone.items.reduce((sum, item) => sum + (item.areaPing || 0), 0);
+
+            // If the zone has items but no area, skip it as well
+            if (zoneArea === 0) {
+                return;
+            }
 
             zoneRecipes.forEach(recipe => {
                 const mat = recipe.material;
