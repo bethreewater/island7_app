@@ -55,7 +55,12 @@ const MobileTabButton: React.FC<{
 );
 
 // --- 主詳情頁面 / CASE DETAIL PAGE ---
-export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUpdate: (u: CaseData) => void }> = ({ caseData, onBack, onUpdate }) => {
+export const CaseDetail: React.FC<{
+  caseData: CaseData;
+  onBack: () => void;
+  onUpdate: (u: CaseData) => void;
+  onNavigate: (view: 'dashboard' | 'datacenter' | 'settings' | 'map') => void;
+}> = ({ caseData, onBack, onUpdate, onNavigate }) => {
   const [activeTab, setActiveTab] = useState<'eval' | 'log' | 'quote' | 'schedule' | 'warranty'>('eval');
   const [localData, setLocalData] = useState<CaseData>(caseData);
   const [methods, setMethods] = useState<MethodItem[]>([]);
@@ -118,20 +123,30 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
     }, 1000); // 1 second debounce
   };
 
-  const calculatedTotal = useMemo(() => localData.zones.reduce((sum, zone) => sum + zone.items.reduce((zSum, item) => zSum + item.itemPrice, 0), 0), [localData.zones]);
+  const calculatedTotal = useMemo(() => {
+    if (!localData.zones) return 0;
+    return localData.zones.reduce((sum, zone) => sum + (zone.items || []).reduce((zSum, item) => zSum + (item.itemPrice || 0), 0), 0);
+  }, [localData?.zones]);
 
   const generateAutoSchedule = () => {
-    const baseDate = localData.startDate ? new Date(localData.startDate) : new Date();
+    if (!localData.startDate) {
+      toast.error("請先設定開工日期");
+      return;
+    }
+    const baseDate = new Date(localData.startDate);
     const newSchedule: ScheduleTask[] = [];
-    localData.zones.forEach(zone => {
-      const method = methods.find(m => m.id === zone.methodId);
-      if (!method) return;
-      method.steps.forEach((step, sIdx) => {
-        const taskDate = new Date(baseDate);
-        taskDate.setDate(taskDate.getDate() + sIdx);
-        newSchedule.push({ taskId: `${zone.zoneId}-${sIdx}`, date: taskDate.toISOString().slice(0, 10), zoneName: zone.zoneName, taskName: step.name, isCompleted: false });
+
+    if (localData.zones) {
+      localData.zones.forEach(zone => {
+        const method = methods.find(m => m.id === zone.methodId);
+        if (!method) return;
+        method.steps.forEach((step, sIdx) => {
+          const taskDate = new Date(baseDate);
+          taskDate.setDate(taskDate.getDate() + sIdx);
+          newSchedule.push({ taskId: `${zone.zoneId}-${sIdx}`, date: taskDate.toISOString().slice(0, 10), zoneName: zone.zoneName, taskName: step.name, isCompleted: false });
+        });
       });
-    });
+    }
     handleUpdate({ ...localData, schedule: newSchedule });
     toast.success("排程已根據工法步驟自動產出", {
       icon: '📅',
@@ -246,7 +261,7 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
   }
 
   return (
-    <Layout title={localData.customerName} onBack={onBack}>
+    <Layout title={localData.customerName} onBack={onBack} onNavigate={onNavigate}>
       <div className="max-w-7xl mx-auto px-0 md:px-0 pt-2 mb-2">
         <CaseStatusStepper currentStatus={localData.status} onSetStatus={handleStatusChange} />
       </div>
@@ -322,14 +337,20 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
                             duration: 4000
                           });
                         } else {
-                          toast.error('無法解析此地址，請檢查地址是否正確', {
-                            id: 'geocoding',
-                            duration: 4000
-                          });
+                          // 解析失敗，但不清除地址文字
+                          toast.error(
+                            '💡 提示：精確門牌可能無法解析\n' +
+                            '建議使用：區域 + 主要道路\n' +
+                            '例如「中和區建八路」或「大安區忠孝東路」',
+                            {
+                              id: 'geocoding',
+                              duration: 6000
+                            }
+                          );
                         }
                       } catch (error) {
                         console.error('Geocoding 錯誤:', error);
-                        toast.error('地址解析失敗，請稍後再試', {
+                        toast.error('地址解析服務暫時無法使用\n請稍後再試', {
                           id: 'geocoding',
                           duration: 4000
                         });
@@ -357,6 +378,48 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
                   onChange={e => handleUpdate({ ...localData, addressNote: e.target.value })}
                   placeholder="例：3樓、後棟、B1 停車場旁"
                 />
+
+                {/* 手動設定座標（當自動解析失敗時） */}
+                {localData.address && (
+                  <div className="bg-blue-50 border border-blue-200 p-4 rounded space-y-3">
+                    <div className="text-xs font-bold text-blue-800">
+                      🗺️ {localData.latitude ? '座標資訊' : '手動設定座標（可選）'}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        label="緯度 / LATITUDE"
+                        type="number"
+                        step="0.000001"
+                        value={localData.latitude ?? ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          handleUpdate({
+                            ...localData,
+                            latitude: val ? parseFloat(val) : undefined
+                          });
+                        }}
+                        placeholder="25.033"
+                      />
+                      <Input
+                        label="經度 / LONGITUDE"
+                        type="number"
+                        step="0.000001"
+                        value={localData.longitude ?? ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          handleUpdate({
+                            ...localData,
+                            longitude: val ? parseFloat(val) : undefined
+                          });
+                        }}
+                        placeholder="121.565"
+                      />
+                    </div>
+                    <div className="text-[10px] text-blue-600">
+                      提示：可使用 Google Maps 查詢座標，在地圖上點右鍵即可看到經緯度
+                    </div>
+                  </div>
+                )}
               </div>
             </Card>
 

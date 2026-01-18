@@ -66,16 +66,18 @@ const App: React.FC = () => {
 
     loadData();
 
+    /*
     const dataSub = subscribeToCases(async () => {
       const data = await getCases();
       if (mounted) {
         setCases(data.sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime()));
       }
     });
+    */
 
     return () => {
       mounted = false;
-      dataSub.unsubscribe();
+      // dataSub.unsubscribe();
     };
   }, [session]);
 
@@ -86,6 +88,11 @@ const App: React.FC = () => {
 
   const handleNavigate = (target: 'dashboard' | 'datacenter' | 'settings' | 'map') => {
     setView(target);
+  };
+
+  const handleCaseUpdate = (updatedCase: CaseData) => {
+    setSelectedCase(updatedCase);
+    setCases(prev => prev.map(c => c.caseId === updatedCase.caseId ? updatedCase : c));
   };
 
   if (!session) {
@@ -133,7 +140,7 @@ const App: React.FC = () => {
       />
       {view === 'dashboard' && <Dashboard cases={cases} onSelectCase={handleCaseSelect} onOpenKB={() => setView('kb')} onNavigate={handleNavigate} />}
       {view === 'kb' && <KnowledgeBase onBack={() => setView('dashboard')} onNavigate={handleNavigate} />}
-      {view === 'detail' && selectedCase && <CaseDetail caseData={selectedCase} onBack={() => setView('dashboard')} onUpdate={setSelectedCase} />}
+      {view === 'detail' && selectedCase && <CaseDetail caseData={selectedCase} onBack={() => setView('dashboard')} onUpdate={handleCaseUpdate} onNavigate={handleNavigate} />}
       {view === 'datacenter' && <DataCenter cases={cases} onNavigate={handleNavigate} />}
       {view === 'settings' && <Settings onNavigate={handleNavigate} />}
       {view === 'map' && <ConstructionMap cases={cases} onNavigate={handleNavigate} onCaseClick={handleCaseSelect} />}

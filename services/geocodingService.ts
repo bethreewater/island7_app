@@ -80,8 +80,49 @@ const geocodeWithTGOS = async (address: string): Promise<GeocodingResult | null>
 /**
  * 備援：OpenStreetMap Nominatim API
  * 當 TGOS 失敗時使用
+ * 加強版：使用漸進式降級策略提高成功率
  */
 const geocodeWithNominatim = async (address: string): Promise<GeocodingResult | null> => {
+    try {
+        // 清理地址
+        const cleanAddr = address.trim();
+
+        // 策略 1: 嘗試完整地址
+        console.log('📍 Nominatim 策略 1: 完整地址');
+        let result = await tryNominatimQuery(cleanAddr);
+        if (result) return result;
+
+        // 策略 2: 移除門牌號碼，保留街道名稱
+        const withoutNumber = cleanAddr.replace(/\d+號?/g, '').trim();
+        if (withoutNumber !== cleanAddr && withoutNumber.length > 5) {
+            console.log('📍 Nominatim 策略 2: 移除門牌號碼');
+            result = await tryNominatimQuery(withoutNumber);
+            if (result) return result;
+        }
+
+        // 策略 3: 只保留區域和主要道路
+        const districtMatch = cleanAddr.match(/([\u4e00-\u9fa5]+[市區鎮鄉])/);
+        const roadMatch = cleanAddr.match(/([\u4e00-\u9fa5]+[路街道巷弄])/);
+        if (districtMatch && roadMatch) {
+            const simplified = `${districtMatch[0]}${roadMatch[0]}`;
+            console.log('📍 Nominatim 策略 3: 區域+道路:', simplified);
+            result = await tryNominatimQuery(simplified);
+            if (result) return result;
+        }
+
+        console.warn('❌ Nominatim 所有策略都失敗');
+        return null;
+
+    } catch (error) {
+        console.error('Nominatim Geocoding 錯誤:', error);
+        return null;
+    }
+};
+
+/**
+ * 執行單次 Nominatim 查詢
+ */
+const tryNominatimQuery = async (address: string): Promise<GeocodingResult | null> => {
     try {
         const searchQuery = address.includes('台灣') || address.includes('Taiwan')
             ? address
@@ -111,6 +152,8 @@ const geocodeWithNominatim = async (address: string): Promise<GeocodingResult | 
 
         const result = data[0];
 
+        console.log('✓ Nominatim 找到結果:', result.display_name);
+
         return {
             latitude: parseFloat(result.lat),
             longitude: parseFloat(result.lon),
@@ -123,7 +166,7 @@ const geocodeWithNominatim = async (address: string): Promise<GeocodingResult | 
         };
 
     } catch (error) {
-        console.error('Nominatim Geocoding 錯誤:', error);
+        console.error('Nominatim 查詢錯誤:', error);
         return null;
     }
 };

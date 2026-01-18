@@ -28,7 +28,7 @@ export const getCases = async (): Promise<CaseData[]> => {
   // Unified fetch for App-level caching (includes zones for DataCenter)
   const { data, error } = await supabase
     .from('cases')
-    .select('caseId, createdDate, customerName, phone, lineId, address, status, finalPrice, manualPriceAdjustment');
+    .select('caseId, createdDate, customerName, phone, lineId, address, latitude, longitude, addressNote, status, finalPrice, manualPriceAdjustment');
 
   if (error) {
     console.error('Error fetching cases:', error);
