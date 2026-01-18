@@ -117,8 +117,11 @@ export interface CaseData {
   startDate?: string;
   customerName: string;
   phone: string;
+  address?: string;           // 施工地址
+  latitude?: number;          // 緯度(Lat)
+  longitude?: number;         // 經度(Lng) 
+  addressNote?: string;       // 地址備註（如：3樓、後棟等）
   lineId?: string;
-  address: string;
   status: CaseStatus;
   zones: Zone[];
   specialNote: string;

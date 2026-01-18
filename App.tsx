@@ -10,6 +10,7 @@ import { KnowledgeBase } from './pages/KnowledgeBase';
 import { DataCenter } from './pages/DataCenter';
 import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
+import { ConstructionMap } from './pages/ConstructionMap';
 import { NetworkStatusIndicator } from './components/NetworkStatusIndicator';
 import { getCases, subscribeToCases, initDB } from './services/storageService';
 
@@ -22,7 +23,7 @@ const LoadingFallback = () => (
 
 const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
-  const [view, setView] = useState<'dashboard' | 'detail' | 'kb' | 'datacenter' | 'settings'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'detail' | 'kb' | 'datacenter' | 'settings' | 'map'>('dashboard');
   const [selectedCase, setSelectedCase] = useState<CaseData | null>(null);
   const [cases, setCases] = useState<CaseData[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(false);
@@ -83,7 +84,7 @@ const App: React.FC = () => {
     setView('detail');
   };
 
-  const handleNavigate = (target: 'dashboard' | 'datacenter' | 'settings') => {
+  const handleNavigate = (target: 'dashboard' | 'datacenter' | 'settings' | 'map') => {
     setView(target);
   };
 
@@ -135,6 +136,8 @@ const App: React.FC = () => {
       {view === 'detail' && selectedCase && <CaseDetail caseData={selectedCase} onBack={() => setView('dashboard')} onUpdate={setSelectedCase} />}
       {view === 'datacenter' && <DataCenter cases={cases} onNavigate={handleNavigate} />}
       {view === 'settings' && <Settings onNavigate={handleNavigate} />}
+      {view === 'map' && <ConstructionMap cases={cases} onNavigate={handleNavigate} onCaseClick={handleCaseSelect} />}
+
     </div>
   );
 };
