@@ -39,8 +39,8 @@ const MobileTabButton: React.FC<{
   <button
     onClick={onClick}
     className={`flex flex-col items-center gap-1 py-2 px-3 transition-all ${active
-        ? 'text-blue-600 scale-105'
-        : 'text-zinc-400 hover:text-zinc-700'
+      ? 'text-blue-600 scale-105'
+      : 'text-zinc-400 hover:text-zinc-700'
       }`}
   >
     {icon}
@@ -251,7 +251,7 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
       </div>
 
       {/* 頂部 Tab - 桌面版專用 */}
-      <div className="hidden md:flex border-b border-zinc-100 mb-6 sticky top-16 md:top-28 bg-[#fcfcfc]/90 backdrop-blur-md z-40 shadow-sm overflow-x-auto no-scrollbar">
+      <div className="hidden lg:flex border-b border-zinc-100 mb-6 sticky top-16 md:top-28 bg-[#fcfcfc]/90 backdrop-blur-md z-40 shadow-sm overflow-x-auto no-scrollbar">
         <TabButton active={activeTab === 'eval'} onClick={() => setActiveTab('eval')} icon={<Calculator size={16} />} label="現場評估 / EVAL" />
         <TabButton active={activeTab === 'quote'} onClick={() => setActiveTab('quote')} icon={<FileCheck size={16} />} label="報價結算 / QUOTE" />
         <TabButton active={activeTab === 'mats'} onClick={() => setActiveTab('mats')} icon={<Layers size={16} />} label="備料清單 / MATERIALS" />
@@ -394,7 +394,7 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
       </div>
 
       {/* 手機版底部 Tab 導航 */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-zinc-200 shadow-[0_-4px_12px_rgba(0,0,0,0.1)] md:hidden z-[80] pb-safe">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-zinc-200 shadow-[0_-4px_12px_rgba(0,0,0,0.1)] lg:hidden z-[80] safe-area-inset-bottom">
         <div className="flex justify-around items-center h-16 px-2">
           <MobileTabButton
             icon={<Calculator size={20} />}
@@ -424,7 +424,7 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
       </nav>
 
       {/* 桌面版底部總價欄 */}
-      <div className="hidden md:flex fixed bottom-0 left-0 w-full bg-white border-t border-zinc-950 p-4 z-[70] md:max-w-7xl md:mx-auto justify-between items-center gap-4 shadow-[0_-5px_20px_rgba(0,0,0,0.1)]">
+      <div className="hidden lg:flex fixed bottom-0 left-0 w-full bg-white border-t border-zinc-950 p-4 z-[70] md:max-w-7xl md:mx-auto justify-between items-center gap-4 shadow-[0_-5px_20px_rgba(0,0,0,0.1)]">
         <div className="flex flex-col">
           <div className="text-[7px] text-zinc-400 font-black uppercase tracking-widest leading-none mb-1">FINAL TOTAL / 結算</div>
           <div className="font-black text-xl text-zinc-950 leading-none">${(calculatedTotal + localData.manualPriceAdjustment).toLocaleString()}</div>
