@@ -38,13 +38,13 @@ const MobileTabButton: React.FC<{
 }> = ({ icon, label, active, onClick }) => (
   <button
     onClick={onClick}
-    className={`flex flex-col items-center gap-1 py-2 px-3 transition-all ${active
+    className={`flex flex-col items-center justify-center gap-1 py-2 px-4 transition-all shrink-0 min-w-[80px] ${active
       ? 'text-blue-600 scale-105'
       : 'text-zinc-400 hover:text-zinc-700'
       }`}
   >
     {icon}
-    <span className="text-[9px] font-black uppercase tracking-wider">
+    <span className="text-[9px] font-black uppercase tracking-wider whitespace-nowrap">
       {label}
     </span>
     {active && (
