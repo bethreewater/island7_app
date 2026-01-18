@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        body { margin: 0; padding: 20px; font-family: system-ui; }
+        .test-box {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #3b82f6;
+            color: white;
+            padding: 20px;
+            padding-bottom: env(safe-area-inset-bottom, 20px);
+            text-align: center;
+            font-weight: bold;
+        }
+        @media (min-width: 1024px) {
+            .test-box { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Safe Area Test</h1>
+    <p>Viewport width: <span id="width"></span>px</p>
+    <p>Breakpoint: <span id="breakpoint"></span></p>
+    <div class="test-box">
+        底部導航測試<br>
+        (應該在手機上顯示，桌面版 ≥1024px 隱藏)
+    </div>
+    <script>
+        document.getElementById('width').textContent = window.innerWidth;
+        const bp = window.innerWidth >= 1024 ? 'Desktop (≥1024px)' : 
+                   window.innerWidth >= 768 ? 'Tablet (≥768px)' : 
+                   'Mobile (<768px)';
+        document.getElementById('breakpoint').textContent = bp;
+    </script>
+</body>
+</html>

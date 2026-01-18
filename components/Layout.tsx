@@ -1,14 +1,14 @@
 
 import React from 'react';
-import { Home, FileText, Settings, ChevronLeft, TrendingUp } from 'lucide-react';
+import { Home, FileText, Settings, ChevronLeft, TrendingUp, Map } from 'lucide-react';
 
 
 interface LayoutProps {
   children: React.ReactNode;
   title: string;
   onBack?: () => void;
-  onNavigate?: (view: 'dashboard' | 'datacenter' | 'settings') => void;
-  currentView?: 'dashboard' | 'datacenter' | 'settings';
+  onNavigate?: (view: 'dashboard' | 'datacenter' | 'settings' | 'map') => void;
+  currentView?: 'dashboard' | 'datacenter' | 'settings' | 'map';
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children, title, onBack, onNavigate, currentView = 'dashboard' }) => {
@@ -48,6 +48,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, title, onBack, onNavig
               數據中心 / ANALYTICS
             </button>
             <button
+              onClick={() => onNavigate?.('map')}
+              className={`transition-colors ${currentView === 'map' ? 'text-white border-b-2 border-white pb-1 cursor-default' : 'text-zinc-500 hover:text-white'}`}
+            >
+              施工地圖 / MAP
+            </button>
+            <button
               onClick={() => onNavigate?.('settings')}
               className={`transition-colors ${currentView === 'settings' ? 'text-white border-b-2 border-white pb-1 cursor-default' : 'text-zinc-500 hover:text-white'}`}
             >
@@ -76,6 +82,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, title, onBack, onNavig
           label="數據 / ANALYTICS"
           active={currentView === 'datacenter'}
           onClick={() => onNavigate?.('datacenter')}
+        />
+        <NavButton
+          icon={<Map size={20} />}
+          label="地圖 / MAP"
+          active={currentView === 'map'}
+          onClick={() => onNavigate?.('map')}
         />
         <NavButton
           icon={<Settings size={20} />}

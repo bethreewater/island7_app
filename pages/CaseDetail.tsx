@@ -5,6 +5,7 @@ import {
   FileText, ShieldCheck, Package, Edit
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { geocodeAddress } from '../services/geocodingService';
 import { CaseData, MethodItem, ServiceCategory, CaseStatus, STATUS_LABELS, ScheduleTask } from '../types';
 import { getMethods, saveCase, formalizeCase, getCaseDetails } from '../services/storageService';
 import { generateContractPDF, generateEvaluationPDF, generateInvoicePDF } from '../services/pdfService';
@@ -271,6 +272,94 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
               </div>
               <Button onClick={() => handleUpdate({ ...localData, zones: [...localData.zones, { zoneId: `Z-${Date.now()}`, zoneName: '新區域', category: ServiceCategory.WALL_CANCER, methodId: '', methodName: '', unit: '坪', unitPrice: 0, difficultyCoefficient: 1, items: [] }] })}><Plus size={14} /> 新增區域 / ADD</Button>
             </div>
+
+            {/* 客戶基本資訊 */}
+            <Card title="客戶基本資訊 / CUSTOMER INFO">
+              <div className="space-y-4">
+                <Input
+                  label="客戶姓名 / CUSTOMER NAME"
+                  value={localData.customerName}
+                  onChange={e => handleUpdate({ ...localData, customerName: e.target.value })}
+                />
+                <Input
+                  label="聯絡電話 / PHONE"
+                  value={localData.phone}
+                  onChange={e => handleUpdate({ ...localData, phone: e.target.value })}
+                />
+                <div className="space-y-2">
+                  <Input
+                    label="施工地址 / ADDRESS"
+                    value={localData.address || ''}
+                    onChange={(e) => {
+                      // 只更新地址文字，不觸發 geocoding
+                      handleUpdate({ ...localData, address: e.target.value });
+                    }}
+                    onBlur={async (e) => {
+                      // 當失去焦點時，才進行地址轉經緯度
+                      const address = e.target.value.trim();
+                      if (!address || address.length < 8) return;
+
+                      // 如果已有座標且地址未改變，不重複轉換
+                      if (localData.latitude && localData.longitude && localData.address === address) {
+                        return;
+                      }
+
+                      console.log('🔍 開始地址轉經緯度:', address);
+                      toast.loading('正在解析地址...', { id: 'geocoding' });
+
+                      try {
+                        const result = await geocodeAddress(address);
+                        if (result) {
+                          handleUpdate({
+                            ...localData,
+                            address,
+                            latitude: result.latitude,
+                            longitude: result.longitude
+                          });
+                          toast.success(`✓ 地址座標已自動設定\n${result.displayName}`, {
+                            id: 'geocoding',
+                            icon: '📍',
+                            duration: 4000
+                          });
+                        } else {
+                          toast.error('無法解析此地址，請檢查地址是否正確', {
+                            id: 'geocoding',
+                            duration: 4000
+                          });
+                        }
+                      } catch (error) {
+                        console.error('Geocoding 錯誤:', error);
+                        toast.error('地址解析失敗，請稍後再試', {
+                          id: 'geocoding',
+                          duration: 4000
+                        });
+                      }
+                    }}
+                    placeholder="例：台北市大安區忠孝東路三段100號"
+                  />
+                  {localData.latitude && localData.longitude && (
+                    <div className="flex items-center gap-2 text-xs text-green-600 font-bold bg-green-50 px-3 py-2 rounded">
+                      <span>✓ 座標已設定</span>
+                      <span className="text-green-500 font-mono">
+                        {localData.latitude.toFixed(6)}, {localData.longitude.toFixed(6)}
+                      </span>
+                    </div>
+                  )}
+                  {localData.address && !localData.latitude && (
+                    <div className="flex items-center gap-2 text-xs text-amber-600 font-bold bg-amber-50 px-3 py-2 rounded">
+                      <span>⚠ 尚未取得地址座標，請輸入完整地址</span>
+                    </div>
+                  )}
+                </div>
+                <Input
+                  label="地址備註 / ADDRESS NOTE (選填)"
+                  value={localData.addressNote || ''}
+                  onChange={e => handleUpdate({ ...localData, addressNote: e.target.value })}
+                  placeholder="例：3樓、後棟、B1 停車場旁"
+                />
+              </div>
+            </Card>
+
             {localData.zones.map((zone, zIdx) => (
               <ZoneCard key={zone.zoneId} zone={zone} methods={methods} onUpdate={uz => { const nz = [...localData.zones]; nz[zIdx] = uz; handleUpdate({ ...localData, zones: nz }); }} onDelete={() => handleUpdate({ ...localData, zones: localData.zones.filter((_, i) => i !== zIdx) })} />
             ))}
