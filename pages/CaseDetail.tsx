@@ -395,39 +395,39 @@ export const CaseDetail: React.FC<{ caseData: CaseData; onBack: () => void; onUp
 
       {/* 手機版底部 Tab 導航 - 可滑動 */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-zinc-200 shadow-[0_-4px_12px_rgba(0,0,0,0.1)] lg:hidden z-[80] safe-area-inset-bottom">
-        <div className="flex overflow-x-auto no-scrollbar px-2 h-16">
+        <div className="flex overflow-x-auto no-scrollbar px-2 h-20">
           <MobileTabButton
-            icon={<Calculator size={20} />}
+            icon={<Calculator size={24} />}
             label="評估"
             active={activeTab === 'eval'}
             onClick={() => setActiveTab('eval')}
           />
           <MobileTabButton
-            icon={<FileCheck size={20} />}
+            icon={<FileCheck size={24} />}
             label="報價"
             active={activeTab === 'quote'}
             onClick={() => setActiveTab('quote')}
           />
           <MobileTabButton
-            icon={<Edit size={20} />}
+            icon={<Edit size={24} />}
             label="日誌"
             active={activeTab === 'log'}
             onClick={() => setActiveTab('log')}
           />
           <MobileTabButton
-            icon={<Package size={20} />}
+            icon={<Package size={24} />}
             label="備料"
             active={activeTab === 'mats'}
             onClick={() => setActiveTab('mats')}
           />
           <MobileTabButton
-            icon={<CalendarIcon size={20} />}
+            icon={<CalendarIcon size={24} />}
             label="工期"
             active={activeTab === 'schedule'}
             onClick={() => setActiveTab('schedule')}
           />
           <MobileTabButton
-            icon={<ShieldCheck size={20} />}
+            icon={<ShieldCheck size={24} />}
             label="保固"
             active={activeTab === 'warranty'}
             onClick={() => setActiveTab('warranty')}
