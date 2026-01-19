@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 
 export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'outline' }> =
   ({ className = '', variant = 'primary', ...props }) => {
-    const baseStyle = "px-4 md:px-6 py-2 md:py-2.5 rounded-sm font-black text-[10px] md:text-[11px] uppercase tracking-[0.15em] transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap flex items-center justify-center gap-2 md:gap-3 shadow-md";
+    const baseStyle = "px-4 md:px-6 py-2 md:py-2.5 rounded-sm font-black text-[10px] md:text-[11px] uppercase tracking-[0.15em] transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap flex items-center justify-center gap-2 md:gap-3 shadow-md focus:ring-2 focus:ring-offset-2 focus:ring-zinc-950";
     const variants = {
       primary: "bg-zinc-950 text-white hover:bg-black border border-transparent",
       secondary: "bg-white text-zinc-950 border border-zinc-200 hover:border-zinc-950 shadow-sm",
@@ -17,12 +17,19 @@ export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { 
   };
 
 export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label?: string }> =
-  ({ label, className = '', ...props }) => (
-    <div className="flex flex-col gap-1 w-full">
-      {label && <label className="text-[9px] font-black text-zinc-400 uppercase tracking-[0.15em] leading-none mb-1 ml-0.5 whitespace-nowrap">{label}</label>}
-      <input className={`border border-zinc-200 rounded-sm px-3 py-2 focus:ring-2 focus:ring-zinc-950/5 focus:border-zinc-950 outline-none bg-white text-base font-black text-zinc-900 placeholder-zinc-200 transition-all disabled:bg-zinc-50 shadow-sm ${className}`} {...props} />
-    </div>
-  );
+  ({ label, className = '', id, ...props }) => {
+    const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
+    return (
+      <div className="flex flex-col gap-1 w-full">
+        {label && <label htmlFor={inputId} className="text-[9px] font-black text-zinc-400 uppercase tracking-[0.15em] leading-none mb-1 ml-0.5 whitespace-nowrap">{label}</label>}
+        <input
+          id={inputId}
+          className={`border border-zinc-200 rounded-sm px-3 py-2 focus:ring-2 focus:ring-zinc-950 focus:ring-offset-2 focus:border-zinc-950 outline-none bg-white text-base font-black text-zinc-900 placeholder-zinc-400 transition-all disabled:bg-zinc-50 shadow-sm ${className}`}
+          {...props}
+        />
+      </div>
+    );
+  };
 
 export const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string }> =
   ({ label, className = '', children, ...props }) => (

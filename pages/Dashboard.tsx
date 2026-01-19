@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Plus, Search, FolderOpen, TrendingUp, AlertCircle, CheckCircle2, ArrowRight, Book, X, User, Phone, MessageSquare, MapPin, Trash2, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { CaseData, CaseStatus, STATUS_LABELS } from '../types';
@@ -46,7 +46,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
   }, [cases]);
 
   // ... (keep handleSave)
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     // ... (Keep existing handleSave implementation logic exactly, assume no changes needed inside)
     if (!newClient) return;
     try {
@@ -82,10 +82,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
     } catch (e: any) {
       toast.error("儲存失敗: " + (e.message || "未知錯誤"), { duration: 5000 });
     }
-  };
+  }, [newClient, newPhone, newLineId, newAddress, editingCaseId, cases, onSelectCase]);
 
 
-  const handleEdit = (c: CaseData, e: React.MouseEvent) => {
+  const handleEdit = useCallback((c: CaseData, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click
     setEditingCaseId(c.caseId);
     setNewClient(c.customerName);
@@ -93,9 +93,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
     setNewLineId(c.lineId || '');
     setNewAddress(c.address);
     setShowNewModal(true);
-  };
+  }, []);
 
-  const handleDelete = async (caseId: string, caseName: string, e: React.MouseEvent) => {
+  const handleDelete = useCallback(async (caseId: string, caseName: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click
     if (confirm(`確定要刪除案件「${caseName}」嗎？此動作無法復原！`)) {
       try {
@@ -105,9 +105,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
         toast.error("刪除失敗: " + err.message, { duration: 5000 });
       }
     }
-  };
+  }, []);
 
-  const handleCaseClick = async (caseId: string) => {
+  const handleCaseClick = useCallback(async (caseId: string) => {
     setLoading(true);
     try {
       const fullData = await getCaseDetails(caseId);
@@ -120,7 +120,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
       toast.error('無法讀取案件詳細資料', { duration: 5000 });
       setLoading(false);
     }
-  };
+  }, [onSelectCase]);
 
   const filteredCases = cases.filter(c =>
     c.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -312,28 +312,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
   );
 };
 
-const StatCard = ({ icon, label, value, dark = false }: { icon: React.ReactNode, label: string, value: string | number, dark?: boolean }) => (
+const StatCard = React.memo(({ icon, label, value, dark = false }: { icon: React.ReactNode, label: string, value: string | number, dark?: boolean }) => (
   <div className={`${dark ? 'bg-zinc-950 text-white border-zinc-900 shadow-md' : 'bg-white text-zinc-950 border-zinc-100'} p-3 md:p-5 rounded-sm border flex flex-col justify-between h-20 md:h-32 transition-all`}>
     <div className={`text-[7px] md:text-[9px] font-black flex items-center gap-1 md:gap-2 tracking-widest uppercase whitespace-nowrap leading-none ${dark ? 'text-zinc-500' : 'text-zinc-400'}`}>
       {icon} {label.split(' / ')[0]}
     </div>
     <div className="text-xl md:text-3xl font-black tracking-tighter leading-none whitespace-nowrap">{value}</div>
   </div>
-);
+));
 
-const QuickActionButton = ({ onClick, icon, title, subtitle }: { onClick: () => void, icon: React.ReactNode, title: string, subtitle: string }) => (
+const QuickActionButton = React.memo(({ onClick, icon, title, subtitle }: { onClick: () => void, icon: React.ReactNode, title: string, subtitle: string }) => (
   <button onClick={onClick} className="group relative h-20 md:h-32 bg-white border border-zinc-200 rounded-sm p-4 md:p-6 text-left hover:border-zinc-950 transition-all shadow-sm active:scale-95 overflow-hidden">
     <div className="absolute top-4 right-4 text-zinc-100 md:group-hover:text-zinc-950 transition-all">{icon}</div>
     <div className="text-[7px] md:text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-0.5 leading-none">{title}</div>
     <div className="text-sm md:text-lg font-black text-zinc-950 tracking-tighter uppercase whitespace-nowrap leading-none">{subtitle}</div>
   </button>
-);
+));
 
-const InputWithIcon = ({ icon, label, ...props }: any) => (
+const InputWithIcon = React.memo(({ icon, label, ...props }: any) => (
   <div className="space-y-1">
     <label className="text-[8px] md:text-[9px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-1.5 whitespace-nowrap leading-none">
       {icon} {label}
     </label>
     <Input {...props} className="font-black py-1.5 md:py-2.5 text-xs md:text-sm shadow-none" />
   </div>
-);
+));

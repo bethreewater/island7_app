@@ -1,4 +1,4 @@
-import React, { useState, Suspense } from 'react';
+import React, { useState, Suspense, useCallback } from 'react';
 import { CaseData } from './types';
 import { supabase } from './services/supabaseClient';
 import { Session } from '@supabase/supabase-js';
@@ -12,7 +12,7 @@ import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
 import { ConstructionMap } from './pages/ConstructionMap';
 import { NetworkStatusIndicator } from './components/NetworkStatusIndicator';
-import { getCases, subscribeToCases, initDB } from './services/storageService';
+import { getCases, getCasesPaginated, subscribeToCases, initDB } from './services/storageService';
 
 const LoadingFallback = () => (
   <div className="min-h-screen flex flex-col items-center justify-center bg-white">
@@ -53,9 +53,10 @@ const App: React.FC = () => {
       setIsDataLoading(true);
       try {
         await initDB();
-        const data = await getCases();
+        // Use paginated loading for better performance
+        const { data } = await getCasesPaginated(1, 50); // Load first 50 cases
         if (mounted) {
-          setCases(data.sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime()));
+          setCases(data);
         }
       } catch (error) {
         console.error('Failed to load data:', error);
@@ -81,19 +82,19 @@ const App: React.FC = () => {
     };
   }, [session]);
 
-  const handleCaseSelect = (caseData: CaseData) => {
+  const handleCaseSelect = useCallback((caseData: CaseData) => {
     setSelectedCase(caseData);
     setView('detail');
-  };
+  }, []);
 
-  const handleNavigate = (target: 'dashboard' | 'datacenter' | 'settings' | 'map') => {
+  const handleNavigate = useCallback((target: 'dashboard' | 'datacenter' | 'settings' | 'map') => {
     setView(target);
-  };
+  }, []);
 
-  const handleCaseUpdate = (updatedCase: CaseData) => {
+  const handleCaseUpdate = useCallback((updatedCase: CaseData) => {
     setSelectedCase(updatedCase);
     setCases(prev => prev.map(c => c.caseId === updatedCase.caseId ? updatedCase : c));
-  };
+  }, []);
 
   if (!session) {
     return (

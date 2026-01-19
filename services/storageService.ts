@@ -37,6 +37,29 @@ export const getCases = async (): Promise<CaseData[]> => {
   return (data || []) as CaseData[];
 };
 
+// Paginated version for improved performance
+export const getCasesPaginated = async (page: number = 1, limit: number = 20): Promise<{ data: CaseData[], hasMore: boolean, total: number }> => {
+  const start = (page - 1) * limit;
+  const end = start + limit - 1;
+
+  const { data, error, count } = await supabase
+    .from('cases')
+    .select('caseId, createdDate, customerName, phone, lineId, address, latitude, longitude, addressNote, status, finalPrice, manualPriceAdjustment', { count: 'exact' })
+    .order('createdDate', { ascending: false })
+    .range(start, end);
+
+  if (error) {
+    console.error('Error fetching paginated cases:', error);
+    throw error;
+  }
+
+  return {
+    data: (data || []) as CaseData[],
+    hasMore: (count || 0) > end + 1,
+    total: count || 0
+  };
+};
+
 export const getCaseDetails = async (caseId: string): Promise<CaseData | null> => {
   const { data, error } = await supabase
     .from('cases')

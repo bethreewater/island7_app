@@ -44,11 +44,20 @@ export const QuickCalculator: React.FC = () => {
         setRecipes(recipesData);
     };
 
+    // Create a Map for O(1) recipe lookups (performance optimization)
+    const methodRecipeMap = useMemo(() => {
+        const map = new Map<string, boolean>();
+        recipes.forEach(r => {
+            if (r.category === 'variable') {
+                map.set(r.methodId, true);
+            }
+        });
+        return map;
+    }, [recipes]);
+
     // Group methods by category and filter only those with recipes
     const groupedMethods = useMemo(() => {
-        const methodsWithRecipes = methods.filter(method =>
-            recipes.some(r => r.methodId === method.id && r.category === 'variable')
-        );
+        const methodsWithRecipes = methods.filter(method => methodRecipeMap.has(method.id));
 
         const groups: Record<string, MethodItem[]> = {};
         Object.values(ServiceCategory).forEach(category => {
@@ -58,7 +67,7 @@ export const QuickCalculator: React.FC = () => {
             }
         });
         return groups;
-    }, [methods, recipes]);
+    }, [methods, methodRecipeMap]);
 
     // Get recipes for selected method
     const methodRecipes = useMemo(() => {

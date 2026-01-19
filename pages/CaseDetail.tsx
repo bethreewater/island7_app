@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Calculator, FileCheck, Layers, Calendar as CalendarIcon,
   Wand2, CheckCircle2, ChevronRight, Plus, Eye,
@@ -104,7 +104,7 @@ export const CaseDetail: React.FC<{
     };
   }, []);
 
-  const handleUpdate = async (newData: CaseData) => {
+  const handleUpdate = useCallback(async (newData: CaseData) => {
     // 1. Recalculate Final Price
     const baseTotal = newData.zones.reduce((sum, zone) =>
       sum + zone.items.reduce((zSum, item) => zSum + (item.itemPrice || 0), 0), 0
@@ -121,14 +121,14 @@ export const CaseDetail: React.FC<{
       await saveCase(newData);
       onUpdate(newData);
     }, 1000); // 1 second debounce
-  };
+  }, [onUpdate]);
 
   const calculatedTotal = useMemo(() => {
     if (!localData.zones) return 0;
     return localData.zones.reduce((sum, zone) => sum + (zone.items || []).reduce((zSum, item) => zSum + (item.itemPrice || 0), 0), 0);
   }, [localData?.zones]);
 
-  const generateAutoSchedule = () => {
+  const generateAutoSchedule = useCallback(() => {
     if (!localData.startDate) {
       toast.error("請先設定開工日期");
       return;
@@ -151,7 +151,7 @@ export const CaseDetail: React.FC<{
     toast.success("排程已根據工法步驟自動產出", {
       icon: '📅',
     });
-  };
+  }, [localData, methods, handleUpdate]);
 
 
   const handleStatusChange = async (newStatus: CaseStatus) => {
