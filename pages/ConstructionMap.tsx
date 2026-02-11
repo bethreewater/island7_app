@@ -3,14 +3,14 @@ import { MapContainer, TileLayer, Marker, ZoomControl, useMap } from 'react-leaf
 import L from 'leaflet';
 import { CloudRain, Route as RouteIcon } from 'lucide-react';
 import { Layout } from '../components/Layout';
-import { CaseData, CaseStatus, STATUS_LABELS } from '../types';
+import { CaseData, CaseStatus, NavigationView, normalizeCaseStatus } from '../types';
 import { CaseMapCard } from '../components/map/CaseMapCard';
 import { MapFilterBar } from '../components/map/MapFilterBar';
 import { LocationControl } from '../components/map/LocationControl';
 import { MapSearch } from '../components/map/MapSearch';
 import { WeatherLayer } from '../components/map/WeatherLayer';
 import { RouteLayer } from '../components/map/RouteLayer';
-import 'leaflet/dist/leaflet.css';
+import '../styles/leaflet.css';
 
 // 修復 Leaflet 預設圖示路徑問題
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -51,7 +51,7 @@ const MapResizeFix: React.FC = () => {
 
 interface ConstructionMapProps {
     cases: CaseData[];
-    onNavigate?: (view: 'dashboard' | 'datacenter' | 'settings' | 'map') => void;
+    onNavigate?: (view: NavigationView) => void;
     onCaseClick?: (caseData: CaseData) => void;
 }
 
@@ -72,21 +72,22 @@ export const ConstructionMap: React.FC<ConstructionMapProps> = ({
 
     // 1. 過濾有座標的案件
     const casesWithLocation = useMemo(() =>
-        cases.filter(c => c.latitude && c.longitude),
+        cases.filter(c => typeof c.latitude === 'number' && typeof c.longitude === 'number'),
         [cases]
     );
 
     // 2. 應用狀態過濾
     const filteredCases = useMemo(() => {
         if (filterStatuses.length === 0) return casesWithLocation;
-        return casesWithLocation.filter(c => filterStatuses.includes(c.status));
+        return casesWithLocation.filter(c => filterStatuses.includes(normalizeCaseStatus(c.status)));
     }, [casesWithLocation, filterStatuses]);
 
     // 計算各狀態數量（用於 Filter Bar）
     const statusCounts = useMemo(() => {
         const counts: Record<string, number> = { total: casesWithLocation.length };
         casesWithLocation.forEach(c => {
-            counts[c.status] = (counts[c.status] || 0) + 1;
+            const status = normalizeCaseStatus(c.status);
+            counts[status] = (counts[status] || 0) + 1;
         });
         return counts;
     }, [casesWithLocation]);
@@ -222,7 +223,7 @@ export const ConstructionMap: React.FC<ConstructionMapProps> = ({
 
                         {filteredCases.map(caseData => {
                             const isSelected = activeCase?.caseId === caseData.caseId;
-                            const color = STATUS_COLORS[caseData.status] || STATUS_COLORS[CaseStatus.NEW];
+                            const color = STATUS_COLORS[normalizeCaseStatus(caseData.status)] || STATUS_COLORS[CaseStatus.ASSESSMENT];
 
                             return (
                                 <Marker
@@ -244,7 +245,7 @@ export const ConstructionMap: React.FC<ConstructionMapProps> = ({
                     {activeCase && (
                         <CaseMapCard
                             caseData={activeCase}
-                            statusColor={STATUS_COLORS[activeCase.status] || STATUS_COLORS[CaseStatus.NEW]}
+                            statusColor={STATUS_COLORS[normalizeCaseStatus(activeCase.status)] || STATUS_COLORS[CaseStatus.ASSESSMENT]}
                             onClose={() => setActiveCase(null)}
                             onViewDetail={() => onCaseClick?.(activeCase)}
                         />

@@ -1,5 +1,7 @@
 
 
+export type NavigationView = 'dashboard' | 'datacenter' | 'settings' | 'map';
+
 export enum CaseStatus {
   // New Stages
   ASSESSMENT = 'assessment',        // 現場評估 (初始)
@@ -28,6 +30,41 @@ export const STATUS_LABELS: Record<CaseStatus | string, string> = {
   [CaseStatus.PROGRESS]: '施工中',
   [CaseStatus.DONE]: '完工驗收'
 };
+
+const LEGACY_STATUS_MAP: Record<string, CaseStatus> = {
+  [CaseStatus.NEW]: CaseStatus.ASSESSMENT,
+  [CaseStatus.PROGRESS]: CaseStatus.CONSTRUCTION,
+  [CaseStatus.DONE]: CaseStatus.COMPLETED,
+};
+
+export const normalizeCaseStatus = (status: CaseStatus | string): CaseStatus => {
+  return LEGACY_STATUS_MAP[status] ?? (status as CaseStatus);
+};
+
+export const ASSESSMENT_STATUSES: readonly CaseStatus[] = [CaseStatus.ASSESSMENT];
+export const ACTIVE_STATUSES: readonly CaseStatus[] = [
+  CaseStatus.DEPOSIT_RECEIVED,
+  CaseStatus.PLANNING,
+  CaseStatus.CONSTRUCTION,
+  CaseStatus.FINAL_PAYMENT,
+];
+export const COMPLETED_STATUSES: readonly CaseStatus[] = [
+  CaseStatus.COMPLETED,
+  CaseStatus.WARRANTY,
+];
+export const CONSTRUCTION_STATUSES: readonly CaseStatus[] = [CaseStatus.CONSTRUCTION];
+
+export const isAssessmentStatus = (status: CaseStatus | string): boolean =>
+  ASSESSMENT_STATUSES.includes(normalizeCaseStatus(status));
+
+export const isActiveStatus = (status: CaseStatus | string): boolean =>
+  ACTIVE_STATUSES.includes(normalizeCaseStatus(status));
+
+export const isCompletedStatus = (status: CaseStatus | string): boolean =>
+  COMPLETED_STATUSES.includes(normalizeCaseStatus(status));
+
+export const isConstructionStatus = (status: CaseStatus | string): boolean =>
+  CONSTRUCTION_STATUSES.includes(normalizeCaseStatus(status));
 
 export enum ServiceCategory {
   WALL_CANCER = '一般壁癌修繕',

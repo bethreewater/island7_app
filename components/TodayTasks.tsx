@@ -1,5 +1,10 @@
 import React, { useMemo } from 'react';
-import { CaseData, ScheduleTask } from '../types';
+import {
+    CaseData,
+    ScheduleTask,
+    isConstructionStatus,
+    isAssessmentStatus
+} from '../types';
 import { MapPin, TrendingUp, Clock } from 'lucide-react';
 
 interface TodayTasksProps {
@@ -20,14 +25,14 @@ export const TodayTasks: React.FC<TodayTasksProps> = ({ cases, onSelectCase }) =
         const today = new Date().toISOString().split('T')[0];
 
         const activeToday: TaskInfo[] = cases
-            .filter(c => c.status === 'inProgress')
+            .filter(c => isConstructionStatus(c.status))
             .map(c => {
                 const todayTasks = c.schedule?.filter(task =>
-                    task.date === today && task.status !== 'completed'
+                    task.date === today && !task.isCompleted
                 ) || [];
 
                 const totalTasks = c.schedule?.length || 0;
-                const completedTasks = c.schedule?.filter(t => t.status === 'completed').length || 0;
+                const completedTasks = c.schedule?.filter(t => t.isCompleted).length || 0;
                 const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
                 // Calculate days
@@ -45,7 +50,7 @@ export const TodayTasks: React.FC<TodayTasksProps> = ({ cases, onSelectCase }) =
             })
             .filter(item => item.todayTasks.length > 0);
 
-        const pendingStart = cases.filter(c => c.status === 'new');
+        const pendingStart = cases.filter(c => isAssessmentStatus(c.status));
 
         return { activeToday, pendingStart };
     }, [cases]);
@@ -86,7 +91,7 @@ export const TodayTasks: React.FC<TodayTasksProps> = ({ cases, onSelectCase }) =
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {activeToday.map(({ case: caseItem, todayTasks, progress, totalDays, currentDay }) => (
                                 <div
-                                    key={caseItem.id}
+                                    key={caseItem.caseId}
                                     onClick={() => onSelectCase(caseItem)}
                                     className="border-2 border-green-200 rounded-lg p-4 hover:border-green-400 hover:shadow-md transition-all cursor-pointer bg-gradient-to-br from-white to-green-50/30"
                                 >
@@ -98,9 +103,9 @@ export const TodayTasks: React.FC<TodayTasksProps> = ({ cases, onSelectCase }) =
                                     {/* Today's Tasks */}
                                     <div className="text-xs text-zinc-600 mb-3">
                                         {todayTasks.map((task, idx) => (
-                                            <div key={idx} className="flex items-start gap-1">
+                                            <div key={task.taskId || idx} className="flex items-start gap-1">
                                                 <span className="text-green-600">•</span>
-                                                <span>{task.description}</span>
+                                                <span>{task.taskName}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -156,7 +161,7 @@ export const TodayTasks: React.FC<TodayTasksProps> = ({ cases, onSelectCase }) =
                         <div className="space-y-2">
                             {pendingStart.slice(0, 3).map(caseItem => (
                                 <div
-                                    key={caseItem.id}
+                                    key={caseItem.caseId}
                                     onClick={() => onSelectCase(caseItem)}
                                     className="flex items-center gap-3 p-3 border border-orange-200 rounded-lg hover:border-orange-400 hover:bg-orange-50/30 transition-all cursor-pointer"
                                 >

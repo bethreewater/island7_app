@@ -1,9 +1,18 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Plus, Search, FolderOpen, TrendingUp, AlertCircle, CheckCircle2, ArrowRight, Book, X, User, Phone, MessageSquare, MapPin, Trash2, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { CaseData, CaseStatus, STATUS_LABELS } from '../types';
-import { getCases, getInitialCase, saveCase, deleteCase, initDB, subscribeToCases, getCaseDetails } from '../services/storageService';
+import {
+  CaseData,
+  CaseStatus,
+  STATUS_LABELS,
+  NavigationView,
+  isActiveStatus,
+  isAssessmentStatus,
+  isCompletedStatus,
+  normalizeCaseStatus
+} from '../types';
+import { getInitialCase, saveCase, deleteCase, getCaseDetails } from '../services/storageService';
 import { Button, Card, Input } from '../components/InputComponents';
 import { Layout } from '../components/Layout';
 import { TodayTasks } from '../components/TodayTasks';
@@ -12,7 +21,7 @@ interface DashboardProps {
   cases: CaseData[];
   onSelectCase: (c: CaseData) => void;
   onOpenKB: () => void;
-  onNavigate?: (view: 'dashboard' | 'datacenter' | 'settings') => void;
+  onNavigate?: (view: NavigationView) => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, onOpenKB, onNavigate }) => {
@@ -33,14 +42,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
 
 
   const stats = useMemo(() => {
-    const assessmentStatuses = [CaseStatus.ASSESSMENT, CaseStatus.NEW];
-    const activeStatuses = [CaseStatus.DEPOSIT_RECEIVED, CaseStatus.PLANNING, CaseStatus.CONSTRUCTION, CaseStatus.FINAL_PAYMENT, CaseStatus.PROGRESS];
-    const doneStatuses = [CaseStatus.COMPLETED, CaseStatus.WARRANTY, CaseStatus.DONE];
-
     return {
-      assessment: cases.filter(c => assessmentStatuses.includes(c.status as CaseStatus)).length,
-      progress: cases.filter(c => activeStatuses.includes(c.status as CaseStatus)).length,
-      done: cases.filter(c => doneStatuses.includes(c.status as CaseStatus)).length,
+      assessment: cases.filter(c => isAssessmentStatus(c.status)).length,
+      progress: cases.filter(c => isActiveStatus(c.status)).length,
+      done: cases.filter(c => isCompletedStatus(c.status)).length,
       revenue: cases.reduce((sum, c) => sum + (c.finalPrice || 0), 0)
     };
   }, [cases]);
@@ -223,17 +228,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
               className="group bg-white border border-zinc-100 rounded-sm p-3 md:p-5 hover:border-zinc-950 transition-all cursor-pointer flex items-center justify-between shadow-sm"
             >
               <div className="flex items-center gap-4 md:gap-6 min-w-0">
-                <div className={`w-1 h-8 md:w-1.5 md:h-10 rounded-full shrink-0 ${c.status === CaseStatus.PROGRESS ? 'bg-zinc-950' : 'bg-zinc-100'}`}></div>
+                <div className={`w-1 h-8 md:w-1.5 md:h-10 rounded-full shrink-0 ${isActiveStatus(c.status) ? 'bg-zinc-950' : 'bg-zinc-100'}`}></div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-0.5 whitespace-nowrap overflow-hidden">
                     <span className="font-black text-sm md:text-lg tracking-tight text-zinc-950 uppercase truncate">{c.customerName}</span>
                     {/* Status Badge */}
-                    <span className={`text-[8px] md:text-[10px] px-2 py-0.5 rounded-sm border uppercase font-black tracking-widest ${[CaseStatus.DEPOSIT_RECEIVED, CaseStatus.PLANNING, CaseStatus.CONSTRUCTION, CaseStatus.FINAL_PAYMENT, CaseStatus.PROGRESS].includes(c.status as CaseStatus) ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                      [CaseStatus.COMPLETED, CaseStatus.DONE].includes(c.status as CaseStatus) ? 'bg-zinc-100 text-zinc-500 border-zinc-200' :
-                        c.status === CaseStatus.WARRANTY ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                    <span className={`text-[8px] md:text-[10px] px-2 py-0.5 rounded-sm border uppercase font-black tracking-widest ${isActiveStatus(c.status) ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                      isCompletedStatus(c.status) ? 'bg-zinc-100 text-zinc-500 border-zinc-200' :
+                        normalizeCaseStatus(c.status) === CaseStatus.WARRANTY ? 'bg-amber-50 text-amber-700 border-amber-200' :
                           'bg-zinc-950 text-white border-zinc-950'
                       }`}>
-                      {STATUS_LABELS[c.status] || (c.status as string).toUpperCase()}
+                      {STATUS_LABELS[normalizeCaseStatus(c.status)] || (c.status as string).toUpperCase()}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-[8px] md:text-[10px] font-black text-zinc-300 tracking-tight whitespace-nowrap opacity-60">

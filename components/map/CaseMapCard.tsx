@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigation, X, ExternalLink, Calendar, MapPin } from 'lucide-react';
-import { CaseData, STATUS_LABELS } from '../../types';
+import { CaseData, STATUS_LABELS, normalizeCaseStatus } from '../../types';
 
 interface CaseMapCardProps {
     caseData: CaseData;
@@ -39,7 +39,7 @@ export const CaseMapCard: React.FC<CaseMapCardProps> = ({
                                     className="px-2 py-0.5 rounded text-white text-[10px] font-black uppercase tracking-wider"
                                     style={{ backgroundColor: statusColor }}
                                 >
-                                    {STATUS_LABELS[caseData.status]}
+                                    {STATUS_LABELS[normalizeCaseStatus(caseData.status)]}
                                 </span>
                                 <span className="text-zinc-400 text-[10px] font-mono">
                                     #{caseData.caseId}

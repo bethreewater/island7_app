@@ -3,7 +3,15 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/InputComponents';
 import { getBasicAnalytics, getCategoryStats, subscribeToCases, getMethods } from '../services/storageService';
-import { CaseData, CaseStatus, ServiceCategory, MethodItem } from '../types';
+import {
+    CaseData,
+    CaseStatus,
+    MethodItem,
+    NavigationView,
+    isActiveStatus,
+    isAssessmentStatus,
+    normalizeCaseStatus
+} from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { Calculator, TrendingUp, Users, Activity, Shield, FolderOpen, AlertTriangle, Clock } from 'lucide-react';
 import {
@@ -17,7 +25,7 @@ import {
 
 
 interface DataCenterProps {
-    onNavigate?: (view: 'dashboard' | 'datacenter' | 'settings') => void;
+    onNavigate?: (view: NavigationView) => void;
 }
 
 export const DataCenter: React.FC<DataCenterProps> = ({ onNavigate }) => {
@@ -77,26 +85,25 @@ export const DataCenter: React.FC<DataCenterProps> = ({ onNavigate }) => {
     }, []);
 
     const metrics = useMemo(() => {
-        const assessmentCases = basicData.filter(c => c.status === CaseStatus.ASSESSMENT || c.status === CaseStatus.NEW).length;
-        const activeStatuses = [CaseStatus.DEPOSIT_RECEIVED, CaseStatus.PLANNING, CaseStatus.CONSTRUCTION, CaseStatus.FINAL_PAYMENT, CaseStatus.PROGRESS];
-        const activeCases = basicData.filter(c => activeStatuses.includes(c.status as CaseStatus)).length;
-        const warrantyCases = basicData.filter(c => c.status === CaseStatus.WARRANTY).length;
+        const assessmentCases = basicData.filter(c => isAssessmentStatus(c.status)).length;
+        const activeCases = basicData.filter(c => isActiveStatus(c.status)).length;
+        const warrantyCases = basicData.filter(c => normalizeCaseStatus(c.status) === CaseStatus.WARRANTY).length;
         const totalRevenue = basicData.reduce((sum, c) => sum + (c.finalPrice || 0), 0);
 
         return { assessmentCases, activeCases, warrantyCases, totalRevenue };
     }, [basicData]);
 
     const statusData = useMemo(() => {
-        const counts = basicData.reduce((acc, c) => {
-            acc[c.status] = (acc[c.status] || 0) + 1;
-            return acc;
-        }, {} as Record<string, number>);
+        const assessmentCount = basicData.filter(c => isAssessmentStatus(c.status)).length;
+        const activeCount = basicData.filter(c => isActiveStatus(c.status)).length;
+        const completedCount = basicData.filter(c => normalizeCaseStatus(c.status) === CaseStatus.COMPLETED).length;
+        const warrantyCount = basicData.filter(c => normalizeCaseStatus(c.status) === CaseStatus.WARRANTY).length;
 
         return [
-            { name: '新案件 / New', value: counts[CaseStatus.NEW] || 0, color: '#3b82f6' },
-            { name: '進行中 / Progress', value: counts[CaseStatus.PROGRESS] || 0, color: '#eab308' },
-            { name: '已完工 / Done', value: counts[CaseStatus.DONE] || 0, color: '#22c55e' },
-            { name: '保固中 / Warranty', value: counts[CaseStatus.WARRANTY] || 0, color: '#a855f7' },
+            { name: '新案件 / New', value: assessmentCount, color: '#3b82f6' },
+            { name: '進行中 / Progress', value: activeCount, color: '#eab308' },
+            { name: '已完工 / Done', value: completedCount, color: '#22c55e' },
+            { name: '保固中 / Warranty', value: warrantyCount, color: '#a855f7' },
         ].filter(d => d.value > 0);
     }, [basicData]);
 

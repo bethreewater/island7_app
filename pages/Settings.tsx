@@ -4,9 +4,10 @@ import { Layout } from '../components/Layout';
 import { Card, Button } from '../components/InputComponents';
 import { getCases, getMethods } from '../services/storageService';
 import { Download, Database, Server, Book, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { NavigationView } from '../types';
 
 interface SettingsProps {
-    onNavigate?: (view: 'dashboard' | 'datacenter' | 'settings') => void;
+    onNavigate?: (view: NavigationView) => void;
 }
 
 export const Settings: React.FC<SettingsProps> = ({ onNavigate }) => {

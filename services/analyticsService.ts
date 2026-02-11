@@ -1,4 +1,10 @@
-import { CaseData, MethodItem, ScheduleTask, ConstructionLog, CaseStatus } from '../types';
+import {
+    CaseData,
+    MethodItem,
+    CaseStatus,
+    isActiveStatus,
+    isCompletedStatus
+} from '../types';
 
 export interface MethodPerformance {
     methodName: string;
@@ -103,18 +109,8 @@ export const analyzeMethodPerformance = (
     cases: CaseData[],
     methods: MethodItem[]
 ): MethodPerformance[] => {
-    // 只分析已完工或進行中的案件
-    const relevantStatuses = [
-        CaseStatus.CONSTRUCTION,
-        CaseStatus.FINAL_PAYMENT,
-        CaseStatus.COMPLETED,
-        CaseStatus.WARRANTY,
-        CaseStatus.PROGRESS,
-        CaseStatus.DONE
-    ];
-
     const relevantCases = cases.filter(c =>
-        relevantStatuses.includes(c.status as CaseStatus) && c.zones && c.zones.length > 0
+        (isActiveStatus(c.status) || isCompletedStatus(c.status)) && c.zones && c.zones.length > 0
     );
 
     // 按工法分組統計
@@ -214,13 +210,7 @@ export const getDelayedCases = (cases: CaseData[]): DelayedCaseInfo[] => {
  * 計算整體準時完工率
  */
 export const calculateOverallOnTimeRate = (cases: CaseData[]): number => {
-    const relevantStatuses = [
-        CaseStatus.COMPLETED,
-        CaseStatus.WARRANTY,
-        CaseStatus.DONE
-    ];
-
-    const completedCases = cases.filter(c => relevantStatuses.includes(c.status as CaseStatus));
+    const completedCases = cases.filter(c => isCompletedStatus(c.status));
 
     if (completedCases.length === 0) return 100;
 
@@ -233,14 +223,8 @@ export const calculateOverallOnTimeRate = (cases: CaseData[]): number => {
  * 計算平均施工天數
  */
 export const calculateAvgConstructionDays = (cases: CaseData[]): number => {
-    const relevantStatuses = [
-        CaseStatus.COMPLETED,
-        CaseStatus.WARRANTY,
-        CaseStatus.DONE
-    ];
-
     const completedCases = cases.filter(c =>
-        relevantStatuses.includes(c.status as CaseStatus) && c.logs && c.logs.length > 0
+        isCompletedStatus(c.status) && c.logs && c.logs.length > 0
     );
 
     if (completedCases.length === 0) return 0;

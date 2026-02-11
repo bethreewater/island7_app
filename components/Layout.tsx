@@ -1,14 +1,15 @@
 
 import React from 'react';
 import { Home, FileText, Settings, ChevronLeft, TrendingUp, Map } from 'lucide-react';
+import { NavigationView } from '../types';
 
 
 interface LayoutProps {
   children: React.ReactNode;
   title: string;
   onBack?: () => void;
-  onNavigate?: (view: 'dashboard' | 'datacenter' | 'settings' | 'map') => void;
-  currentView?: 'dashboard' | 'datacenter' | 'settings' | 'map';
+  onNavigate?: (view: NavigationView) => void;
+  currentView?: NavigationView;
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children, title, onBack, onNavigate, currentView = 'dashboard' }) => {

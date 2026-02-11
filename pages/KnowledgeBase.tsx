@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { Layout } from '../components/Layout';
 import { Card, Button, Input, Select } from '../components/InputComponents';
 import { QuickCalculator } from '../components/QuickCalculator';
-import { MethodItem, ServiceCategory, MethodStep, Material, MethodRecipe, MaterialCategory } from '../types';
+import { MethodItem, ServiceCategory, MethodStep, Material, MethodRecipe, MaterialCategory, NavigationView } from '../types';
 import { getMethods, saveMethod, deleteMethod, getMaterials, getRecipes, upsertRecipe, deleteRecipe, upsertMaterial, deleteMaterial } from '../services/storageService';
 import { Plus, Trash2, Save, ChevronRight, Layers, Clock, ArrowLeft, FolderOpen } from 'lucide-react';
 
@@ -409,7 +409,7 @@ const MaterialCard: React.FC<{ material: Material, onEdit: (m: Material) => void
 );
 
 
-export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: 'dashboard' | 'datacenter' | 'settings') => void }> = ({ onBack, onNavigate }) => {
+export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: NavigationView) => void }> = ({ onBack, onNavigate }) => {
   const [activeTab, setActiveTab] = useState<'schemes' | 'materials'>('schemes');
   const [methods, setMethods] = useState<MethodItem[]>([]);
   const [editingMethod, setEditingMethod] = useState<MethodItem | null>(null);

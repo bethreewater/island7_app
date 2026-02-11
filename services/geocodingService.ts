@@ -1,7 +1,8 @@
 /**
- * Geocoding Service - 地址轉經緯度服務
- * 使用台灣政府內政部 TGOS API (完全免費、高準確度)
- * 備援：OpenStreetMap Nominatim API
+ * Geocoding Service - 地址轉經緯度
+ * 1) 優先走後端代理（建議用 Supabase Edge Function）
+ * 2) 代理不可用時 fallback 到 OpenStreetMap Nominatim
+ * 3) 內建記憶體 + localStorage 快取，降低重複查詢與 API 壓力
  */
 
 export interface GeocodingResult {
@@ -15,113 +16,112 @@ export interface GeocodingResult {
     };
 }
 
-/**
- * 使用 TGOS (台灣政府內政部) API 進行地址轉經緯度
- * 支援完整門牌號碼，準確度極高
- * 
- * @param address - 台灣地址（例：新北市中和區建八路120號）
- * @returns GeocodingResult 或 null
- */
-const geocodeWithTGOS = async (address: string): Promise<GeocodingResult | null> => {
+interface CacheEntry {
+    value: GeocodingResult | null;
+    expiresAt: number;
+}
+
+const GEOCODE_PROXY_URL = import.meta.env.VITE_GEOCODE_PROXY_URL as string | undefined;
+const CACHE_PREFIX = 'island7:geocode:';
+const HIT_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+const MISS_CACHE_TTL_MS = 1000 * 60 * 60; // 1 hour
+const geocodeCache = new Map<string, CacheEntry>();
+
+const normalizeAddressKey = (address: string): string =>
+    address.trim().toLowerCase();
+
+const getCachedResult = (key: string): { hit: boolean; value: GeocodingResult | null } => {
+    const now = Date.now();
+    const memoryEntry = geocodeCache.get(key);
+    if (memoryEntry && memoryEntry.expiresAt > now) {
+        return { hit: true, value: memoryEntry.value };
+    }
+    if (memoryEntry) {
+        geocodeCache.delete(key);
+    }
+
     try {
-        // TGOS API 端點（免費、無需註冊）
-        const url = `https://addr.tgos.tw/addrdb/api/addr_single_query.json`;
+        const raw = localStorage.getItem(CACHE_PREFIX + key);
+        if (!raw) return { hit: false, value: null };
 
-        const params = new URLSearchParams({
-            addrstr: address,
-            epsg: '4326', // WGS84 座標系統
-            format: 'json'
-        });
-
-        console.log('🗺️ TGOS Geocoding:', address);
-
-        const response = await fetch(`${url}?${params}`, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json'
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`TGOS API 錯誤: ${response.status}`);
+        const entry = JSON.parse(raw) as CacheEntry;
+        if (entry.expiresAt <= now) {
+            localStorage.removeItem(CACHE_PREFIX + key);
+            return { hit: false, value: null };
         }
 
+        geocodeCache.set(key, entry);
+        return { hit: true, value: entry.value };
+    } catch {
+        return { hit: false, value: null };
+    }
+};
+
+const setCachedResult = (key: string, value: GeocodingResult | null) => {
+    const entry: CacheEntry = {
+        value,
+        expiresAt: Date.now() + (value ? HIT_CACHE_TTL_MS : MISS_CACHE_TTL_MS),
+    };
+    geocodeCache.set(key, entry);
+    try {
+        localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry));
+    } catch {
+        // Ignore storage failures (private mode / quota exceeded)
+    }
+};
+
+const toGeocodingResult = (input: any): GeocodingResult | null => {
+    if (!input) return null;
+
+    const latitude = Number(input.latitude ?? input.lat);
+    const longitude = Number(input.longitude ?? input.lon ?? input.lng);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        return null;
+    }
+
+    return {
+        latitude,
+        longitude,
+        displayName: input.displayName || input.display_name || input.address || '',
+        address: {
+            city: input.address?.city || input.address?.county,
+            district: input.address?.district || input.address?.town || input.address?.suburb,
+            road: input.address?.road,
+        },
+    };
+};
+
+const geocodeWithProxy = async (address: string): Promise<GeocodingResult | null> => {
+    if (!GEOCODE_PROXY_URL) return null;
+
+    const parseResponse = async (response: Response): Promise<GeocodingResult | null> => {
+        if (!response.ok) return null;
         const data = await response.json();
+        return toGeocodingResult(data?.result ?? data);
+    };
 
-        // 檢查回應狀態
-        if (data.resmsg !== 'Success' || !data.QueryRes || !data.QueryRes.WGS84) {
-            console.warn('TGOS 找不到該地址');
-            return null;
-        }
-
-        const coords = data.QueryRes.WGS84.split(',');
-
-        if (coords.length !== 2) {
-            throw new Error('TGOS 回傳座標格式錯誤');
-        }
-
-        return {
-            latitude: parseFloat(coords[1]), // TGOS 回傳格式：經度,緯度
-            longitude: parseFloat(coords[0]),
-            displayName: data.QueryRes.ADDR || address,
-            address: {
-                city: data.QueryRes.COUNTY,
-                district: data.QueryRes.TOWN,
-                road: data.QueryRes.ROAD
-            }
-        };
-
-    } catch (error) {
-        console.error('TGOS Geocoding 錯誤:', error);
-        return null;
-    }
-};
-
-/**
- * 備援：OpenStreetMap Nominatim API
- * 當 TGOS 失敗時使用
- * 加強版：使用漸進式降級策略提高成功率
- */
-const geocodeWithNominatim = async (address: string): Promise<GeocodingResult | null> => {
     try {
-        // 清理地址
-        const cleanAddr = address.trim();
+        const postResponse = await fetch(GEOCODE_PROXY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address }),
+        });
+        const postResult = await parseResponse(postResponse);
+        if (postResult) return postResult;
+    } catch {
+        // Fallback to GET below
+    }
 
-        // 策略 1: 嘗試完整地址
-        console.log('📍 Nominatim 策略 1: 完整地址');
-        let result = await tryNominatimQuery(cleanAddr);
-        if (result) return result;
-
-        // 策略 2: 移除門牌號碼，保留街道名稱
-        const withoutNumber = cleanAddr.replace(/\d+號?/g, '').trim();
-        if (withoutNumber !== cleanAddr && withoutNumber.length > 5) {
-            console.log('📍 Nominatim 策略 2: 移除門牌號碼');
-            result = await tryNominatimQuery(withoutNumber);
-            if (result) return result;
-        }
-
-        // 策略 3: 只保留區域和主要道路
-        const districtMatch = cleanAddr.match(/([\u4e00-\u9fa5]+[市區鎮鄉])/);
-        const roadMatch = cleanAddr.match(/([\u4e00-\u9fa5]+[路街道巷弄])/);
-        if (districtMatch && roadMatch) {
-            const simplified = `${districtMatch[0]}${roadMatch[0]}`;
-            console.log('📍 Nominatim 策略 3: 區域+道路:', simplified);
-            result = await tryNominatimQuery(simplified);
-            if (result) return result;
-        }
-
-        console.warn('❌ Nominatim 所有策略都失敗');
-        return null;
-
-    } catch (error) {
-        console.error('Nominatim Geocoding 錯誤:', error);
+    try {
+        const url = `${GEOCODE_PROXY_URL}${GEOCODE_PROXY_URL.includes('?') ? '&' : '?'}address=${encodeURIComponent(address)}`;
+        const getResponse = await fetch(url);
+        return await parseResponse(getResponse);
+    } catch {
         return null;
     }
 };
 
-/**
- * 執行單次 Nominatim 查詢
- */
 const tryNominatimQuery = async (address: string): Promise<GeocodingResult | null> => {
     try {
         const searchQuery = address.includes('台灣') || address.includes('Taiwan')
@@ -132,99 +132,83 @@ const tryNominatimQuery = async (address: string): Promise<GeocodingResult | nul
             `q=${encodeURIComponent(searchQuery)}` +
             `&format=json` +
             `&limit=1` +
-            `&accept-language=zh-TW`;
+            `&accept-language=zh-TW` +
+            `&addressdetails=1`;
 
-        const response = await fetch(url, {
-            headers: {
-                'User-Agent': 'Island7-Construction-Management-System/1.0'
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`Nominatim API 錯誤: ${response.status}`);
-        }
+        const response = await fetch(url);
+        if (!response.ok) return null;
 
         const data = await response.json();
+        if (!Array.isArray(data) || data.length === 0) return null;
 
-        if (!data || data.length === 0) {
-            return null;
-        }
-
-        const result = data[0];
-
-        console.log('✓ Nominatim 找到結果:', result.display_name);
-
-        return {
-            latitude: parseFloat(result.lat),
-            longitude: parseFloat(result.lon),
-            displayName: result.display_name,
-            address: {
-                city: result.address?.city || result.address?.county,
-                district: result.address?.suburb || result.address?.town,
-                road: result.address?.road
-            }
-        };
-
-    } catch (error) {
-        console.error('Nominatim 查詢錯誤:', error);
+        return toGeocodingResult(data[0]);
+    } catch {
         return null;
     }
+};
+
+const geocodeWithNominatim = async (address: string): Promise<GeocodingResult | null> => {
+    const cleanAddress = address.trim();
+
+    // Strategy 1: full address
+    let result = await tryNominatimQuery(cleanAddress);
+    if (result) return result;
+
+    // Strategy 2: remove house number
+    const withoutNumber = cleanAddress.replace(/\d+號?/g, '').trim();
+    if (withoutNumber !== cleanAddress && withoutNumber.length > 5) {
+        result = await tryNominatimQuery(withoutNumber);
+        if (result) return result;
+    }
+
+    // Strategy 3: district + major road
+    const districtMatch = cleanAddress.match(/([\u4e00-\u9fa5]+[市區鎮鄉])/);
+    const roadMatch = cleanAddress.match(/([\u4e00-\u9fa5]+[路街道巷弄])/);
+    if (districtMatch && roadMatch) {
+        result = await tryNominatimQuery(`${districtMatch[0]}${roadMatch[0]}`);
+    }
+
+    return result;
 };
 
 /**
  * 主要 Geocoding 函數
- * 優先使用 TGOS (台灣政府)，失敗時備援 Nominatim
- * 
- * @param address - 地址字串
- * @returns GeocodingResult 或 null
+ * 優先走後端代理，失敗時 fallback Nominatim，結果自動快取。
  */
 export const geocodeAddress = async (address: string): Promise<GeocodingResult | null> => {
-    try {
-        // 清理地址
-        const cleanAddress = address.trim();
+    const cleanAddress = address.trim();
+    if (!cleanAddress || cleanAddress.length < 5) return null;
 
-        if (!cleanAddress || cleanAddress.length < 5) {
-            console.warn('地址太短，無法進行 geocoding');
-            return null;
-        }
+    const key = normalizeAddressKey(cleanAddress);
+    const cached = getCachedResult(key);
+    if (cached.hit) return cached.value;
 
-        // 【暫時停用 TGOS】因為瀏覽器 CORS 限制
-        // TGOS 需要透過後端代理才能使用（未來可用 Supabase Edge Functions）
-        // 目前直接使用 OpenStreetMap Nominatim（已修復 URL typo）
-
-        console.log('🌍 使用 OpenStreetMap Nominatim API...');
-        const nominatimResult = await geocodeWithNominatim(cleanAddress);
-
-        if (nominatimResult) {
-            console.log('✅ Nominatim 成功！座標:', nominatimResult.latitude, nominatimResult.longitude);
-            return nominatimResult;
-        }
-
-        console.warn('❌ Geocoding 失敗');
-        return null;
-
-    } catch (error) {
-        console.error('Geocoding 錯誤:', error);
-        return null;
+    const proxyResult = await geocodeWithProxy(cleanAddress);
+    if (proxyResult) {
+        setCachedResult(key, proxyResult);
+        return proxyResult;
     }
+
+    const nominatimResult = await geocodeWithNominatim(cleanAddress);
+    setCachedResult(key, nominatimResult);
+    return nominatimResult;
 };
 
 /**
- * 批次處理多個地址的 geocoding
- * 自動加入延遲以符合 API 限制
+ * 批次地址 geocoding，串行執行避免超過外部 API 速率限制。
  */
 export const batchGeocodeAddresses = async (
     addresses: string[]
 ): Promise<Map<string, GeocodingResult | null>> => {
     const results = new Map<string, GeocodingResult | null>();
 
-    for (const address of addresses) {
+    for (let i = 0; i < addresses.length; i++) {
+        const address = addresses[i];
         const result = await geocodeAddress(address);
         results.set(address, result);
 
-        // 等待 0.5 秒避免過度請求
-        if (addresses.indexOf(address) < addresses.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 500));
+        if (i < addresses.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 500));
         }
     }
 

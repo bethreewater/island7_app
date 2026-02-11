@@ -6,9 +6,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { geocodeAddress } from '../services/geocodingService';
-import { CaseData, MethodItem, ServiceCategory, CaseStatus, STATUS_LABELS, ScheduleTask } from '../types';
+import { CaseData, MethodItem, ServiceCategory, CaseStatus, STATUS_LABELS, ScheduleTask, NavigationView, normalizeCaseStatus } from '../types';
 import { getMethods, saveCase, formalizeCase, getCaseDetails } from '../services/storageService';
-import { generateContractPDF, generateEvaluationPDF, generateInvoicePDF } from '../services/pdfService';
 import { Button, Card, Input } from '../components/InputComponents';
 import { Layout } from '../components/Layout';
 
@@ -59,9 +58,9 @@ export const CaseDetail: React.FC<{
   caseData: CaseData;
   onBack: () => void;
   onUpdate: (u: CaseData) => void;
-  onNavigate: (view: 'dashboard' | 'datacenter' | 'settings' | 'map') => void;
+  onNavigate: (view: NavigationView) => void;
 }> = ({ caseData, onBack, onUpdate, onNavigate }) => {
-  const [activeTab, setActiveTab] = useState<'eval' | 'log' | 'quote' | 'schedule' | 'warranty'>('eval');
+  const [activeTab, setActiveTab] = useState<'eval' | 'log' | 'quote' | 'mats' | 'schedule' | 'warranty'>('eval');
   const [localData, setLocalData] = useState<CaseData>(caseData);
   const [methods, setMethods] = useState<MethodItem[]>([]);
   const [loading, setLoading] = useState(!caseData.zones);
@@ -155,9 +154,11 @@ export const CaseDetail: React.FC<{
 
 
   const handleStatusChange = async (newStatus: CaseStatus) => {
+    const currentStatus = normalizeCaseStatus(localData.status);
+
     // Formalization Logic: Assessment -> Deposit Received (Move EVAL- to Formal ID)
     if (newStatus === CaseStatus.DEPOSIT_RECEIVED &&
-      localData.status === CaseStatus.ASSESSMENT &&
+      currentStatus === CaseStatus.ASSESSMENT &&
       localData.caseId.startsWith('EVAL-')) {
 
       if (confirm("【確認案件正式成立】\n\n是否確認將此評估單轉為正式案件？\n系統將自動生成正式合約編號 (YYYYMMDD-XXX)，並移除 EVAL 標記。")) {
@@ -191,12 +192,13 @@ export const CaseDetail: React.FC<{
     CaseStatus.WARRANTY
   ];
 
-  const CaseStatusStepper: React.FC<{ currentStatus: CaseStatus; onSetStatus: (s: CaseStatus) => void }> = ({ currentStatus, onSetStatus }) => {
-    const currentIndex = STATUS_ORDER.indexOf(currentStatus as CaseStatus);
+  const CaseStatusStepper: React.FC<{ currentStatus: CaseStatus | string; onSetStatus: (s: CaseStatus) => void }> = ({ currentStatus, onSetStatus }) => {
+    const normalizedStatus = normalizeCaseStatus(currentStatus);
+    const currentIndex = STATUS_ORDER.indexOf(normalizedStatus as CaseStatus);
     const safeIndex = currentIndex === -1 ? 0 : currentIndex;
 
     const getNextAction = () => {
-      switch (currentStatus) {
+      switch (normalizedStatus) {
         case CaseStatus.ASSESSMENT: return "請確認報價並收取訂金";
         case CaseStatus.DEPOSIT_RECEIVED: return "請開始規劃行程與備料";
         case CaseStatus.PLANNING: return "準備進場施工";
@@ -250,6 +252,18 @@ export const CaseDetail: React.FC<{
       </div>
     );
   };
+
+  const getPDFService = useCallback(async () => import('../services/pdfService'), []);
+  const workflowReference = useMemo(() => {
+    return (localData.zones || []).map((zone) => {
+      const method = methods.find((item) => item.id === zone.methodId);
+      return {
+        zoneName: zone.zoneName || '未命名區域',
+        methodName: zone.methodName || method?.name || '未設定工法',
+        steps: method?.steps || [],
+      };
+    });
+  }, [localData.zones, methods]);
 
   if (loading) {
     return (
@@ -445,34 +459,47 @@ export const CaseDetail: React.FC<{
                 </div>
               </div>
             </Card>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <ExportButton
-                onClick={() => {
+                onClick={async () => {
                   const realParams = { ...localData, finalPrice: calculatedTotal + (localData.manualPriceAdjustment || 0) };
+                  const { generateEvaluationPDF } = await getPDFService();
                   return generateEvaluationPDF(realParams, 'preview');
                 }}
                 icon={<Eye size={20} />}
                 label="預覽評估 / EVAL"
               />
               <ExportButton
-                onClick={() => {
+                onClick={async () => {
                   const realParams = { ...localData, finalPrice: calculatedTotal + (localData.manualPriceAdjustment || 0) };
+                  const { generateQuotationPDF } = await getPDFService();
+                  return generateQuotationPDF(realParams, 'preview');
+                }}
+                icon={<Eye size={20} />}
+                label="預覽報價 / QUOTE"
+              />
+              <ExportButton
+                onClick={async () => {
+                  const realParams = { ...localData, finalPrice: calculatedTotal + (localData.manualPriceAdjustment || 0) };
+                  const { generateContractPDF } = await getPDFService();
                   return generateContractPDF(realParams, 'preview');
                 }}
                 icon={<Eye size={20} />}
                 label="預覽合約 / CONTRACT"
               />
               <ExportButton
-                onClick={() => {
+                onClick={async () => {
                   const realParams = { ...localData, finalPrice: calculatedTotal + (localData.manualPriceAdjustment || 0) };
+                  const { generateInvoicePDF } = await getPDFService();
                   return generateInvoicePDF(realParams, 'DEPOSIT', 'preview');
                 }}
                 icon={<Eye size={20} />}
                 label="預覽頭期 / DEPOSIT"
               />
               <ExportButton
-                onClick={() => {
+                onClick={async () => {
                   const realParams = { ...localData, finalPrice: calculatedTotal + (localData.manualPriceAdjustment || 0) };
+                  const { generateInvoicePDF } = await getPDFService();
                   return generateInvoicePDF(realParams, 'FINAL', 'preview');
                 }}
                 icon={<Eye size={20} />}
@@ -518,17 +545,43 @@ export const CaseDetail: React.FC<{
 
         {/* TAB 5: LOG */}
         {activeTab === 'log' && (
-          <ConstructionLogTab
-            schedule={localData.schedule}
-            logs={localData.logs || []}
-            onUpdate={(newLogs, updatedSchedule) => {
-              const newData = { ...localData, logs: newLogs };
-              if (updatedSchedule) {
-                newData.schedule = updatedSchedule;
-              }
-              handleUpdate(newData);
-            }}
-          />
+          <div className="space-y-6">
+            <Card title="工法流程對照 / WORKFLOW REFERENCE">
+              <div className="space-y-4">
+                {workflowReference.length === 0 && (
+                  <div className="text-sm text-zinc-400">尚未設定區域與工法，無法對照流程。</div>
+                )}
+                {workflowReference.map((item, index) => (
+                  <div key={`${item.zoneName}-${index}`} className="border border-zinc-100 rounded-sm p-3 space-y-2">
+                    <div className="text-[11px] font-black text-zinc-900">
+                      {item.zoneName} / {item.methodName}
+                    </div>
+                    <div className="text-xs text-zinc-600 flex flex-wrap gap-2">
+                      {item.steps.length > 0
+                        ? item.steps.map((step, stepIndex) => (
+                          <span key={`${step.name}-${stepIndex}`} className="px-2 py-1 bg-zinc-50 border border-zinc-100 rounded-sm">
+                            {stepIndex + 1}. {step.name}
+                          </span>
+                        ))
+                        : <span className="text-zinc-400">未找到工法步驟</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <ConstructionLogTab
+              schedule={localData.schedule}
+              logs={localData.logs || []}
+              onUpdate={(newLogs, updatedSchedule) => {
+                const newData = { ...localData, logs: newLogs };
+                if (updatedSchedule) {
+                  newData.schedule = updatedSchedule;
+                }
+                handleUpdate(newData);
+              }}
+            />
+          </div>
         )}
 
         {/* TAB 6: WARRANTY */}
