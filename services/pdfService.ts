@@ -1,8 +1,9 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { CaseData, ServiceCategory, Zone } from '../types';
+import { CaseData, ServiceCategory, Zone, WarrantyType, MethodItem } from '../types';
 import { METHOD_CATALOG } from '../constants';
+import { getMaterials, getRecipes, getMethods } from './storageService';
 
 const COMPANY_NAME = "海島七號工程 / ISLAND NO. 7 ENGINEERING";
 const COMPANY_ID = "統一編號 / VAT: XXXXXXXX";
@@ -106,6 +107,7 @@ const addFontToDoc = (doc: jsPDF, base64: string) => {
     doc.addFileToVFS(fontFileName, base64);
   }
   doc.addFont(fontFileName, "NotoSansTC", "normal");
+  doc.addFont(fontFileName, "NotoSansTC", "bold");
   doc.setFont("NotoSansTC");
 };
 
@@ -194,9 +196,35 @@ const getZoneSubtotal = (zone: Zone): number =>
 const getZoneTotalArea = (zone: Zone): number =>
   (zone.items || []).reduce((sum, item) => sum + (item.areaPing || 0), 0);
 
-const getMethodById = (methodId: string) => METHOD_CATALOG.find((m) => m.id === methodId);
+// Database methods cache for PDF generation
+let dbMethodsCache: MethodItem[] | null = null;
+let dbMethodsCacheTime = 0;
+const DB_CACHE_TTL = 30000; // 30 seconds
 
-const getZoneWorkflowSteps = (zone: Zone) => getMethodById(zone.methodId)?.steps || [];
+const loadDbMethods = async (): Promise<MethodItem[]> => {
+  const now = Date.now();
+  if (dbMethodsCache && (now - dbMethodsCacheTime) < DB_CACHE_TTL) {
+    return dbMethodsCache;
+  }
+  try {
+    const methods = await getMethods();
+    if (methods && methods.length > 0) {
+      dbMethodsCache = methods;
+      dbMethodsCacheTime = now;
+      return methods;
+    }
+  } catch (e) {
+    console.warn('Failed to load methods from DB, falling back to catalog', e);
+  }
+  return METHOD_CATALOG;
+};
+
+const getMethodById = (methodId: string, methods?: MethodItem[]) => {
+  const source = methods || dbMethodsCache || METHOD_CATALOG;
+  return source.find((m) => m.id === methodId);
+};
+
+const getZoneWorkflowSteps = (zone: Zone, methods?: MethodItem[]) => getMethodById(zone.methodId, methods)?.steps || [];
 
 const getProjectDurationDays = (data: CaseData) => {
   if (data.schedule?.length) {
@@ -248,6 +276,38 @@ const getWarrantyClauses = (data: CaseData): string[] => {
   const categories = getCategoryList(data);
   if (!categories.length) return ["保固條件依雙方簽署文件為準。"];
   return categories.map((category) => CATEGORY_WARRANTY_RULES[category] || "保固條件依雙方簽署文件為準。");
+};
+
+// Dynamic warranty text from MethodItem warranty fields
+const getMethodWarrantyText = (
+  warrantyType?: WarrantyType,
+  warrantyMonths?: number,
+  warrantyVisits?: number
+): string => {
+  const type = warrantyType || 'leak_handled';
+  const months = warrantyMonths ?? 12;
+
+  if (type === 'leak_ignored') {
+    return '不處理漏水源：不提供保固';
+  }
+
+  const years = Math.floor(months / 12);
+  const remainMonths = months % 12;
+  let durationText = '';
+  if (years > 0 && remainMonths > 0) {
+    durationText = `${years} 年 ${remainMonths} 個月`;
+  } else if (years > 0) {
+    durationText = `${years} 年`;
+  } else {
+    durationText = `${remainMonths} 個月`;
+  }
+
+  if (type === 'leak_unhandled') {
+    const visits = warrantyVisits ?? 1;
+    return `無法處理漏水源：${durationText} ${visits} 次保固`;
+  }
+
+  return `有處理漏水源：${durationText}保固`;
 };
 
 // ============================================================================
@@ -313,6 +373,9 @@ export const generateEvaluationPDF = async (data: CaseData, mode: 'save' | 'prev
   await loadFont(doc);
 
   setupDocument(doc, "EVALUATION REPORT", "現勘評估報告");
+
+  // Pre-load methods from database
+  const dbMethods = await loadDbMethods();
 
   // Client Info Grid
   doc.setFontSize(10);
@@ -432,7 +495,7 @@ export const generateEvaluationPDF = async (data: CaseData, mode: 'save' | 'prev
     currentY += 6;
 
     // Workflow section for process transparency
-    const workflowSteps = getZoneWorkflowSteps(zone);
+    const workflowSteps = getZoneWorkflowSteps(zone, dbMethods);
     if (workflowSteps.length) {
       currentY = ensurePageSpace(doc, currentY, 14 + workflowSteps.length * 8);
       doc.setFillColor(245, 247, 250);
@@ -444,7 +507,7 @@ export const generateEvaluationPDF = async (data: CaseData, mode: 'save' | 'prev
 
       workflowSteps.forEach((step, stepIndex) => {
         currentY = ensurePageSpace(doc, currentY, 10);
-        const line = `${stepIndex + 1}. ${step.name} ｜ ${step.description}（Prep ${step.prepMinutes}m / Exec ${step.execMinutes}m）`;
+        const line = `${stepIndex + 1}. ${step.name} | ${step.description} (Prep ${step.prepMinutes}m / Exec ${step.execMinutes}m)`;
         currentY = writeWrappedText(doc, line, 18, currentY + 4.5, 174, 5);
       });
       currentY += 4;
@@ -475,6 +538,10 @@ export const generateQuotationPDF = async (data: CaseData, mode: 'save' | 'previ
   setupDocument(doc, "FORMAL QUOTATION", "正式報價單");
 
   const displayId = getDisplayCaseId(data.caseId, data.customerName);
+
+  // Pre-load methods from database
+  const dbMethods = await loadDbMethods();
+
   const baseSubtotal = (data.zones || []).reduce((sum, zone) => sum + getZoneSubtotal(zone), 0);
   const adjustment = data.manualPriceAdjustment || 0;
   const total = data.finalPrice || (baseSubtotal + adjustment);
@@ -507,84 +574,207 @@ export const generateQuotationPDF = async (data: CaseData, mode: 'save' | 'previ
 
   autoTable(doc, {
     startY: 72,
-    head: [['區域 / ZONE', '工法 / METHOD', '坪數或數量 / QTY', '單價 / UNIT PRICE', '小計 / SUBTOTAL']],
+    head: [['區域 ZONE', '工法 METHOD', '數量 QTY', '單價 PRICE', '小計 SUBTOTAL']],
     body: detailRows.length ? detailRows : [['-', '-', '-', '-', '-']],
     theme: 'grid',
-    styles: { fontSize: 9, cellPadding: 4, font: "NotoSansTC" },
-    headStyles: { fillColor: [30, 30, 30], textColor: 255 },
+    styles: { fontSize: 8, cellPadding: 2.5, font: "NotoSansTC" },
+    headStyles: { fillColor: [30, 30, 30], textColor: 255, font: "NotoSansTC", fontStyle: "bold" },
     columnStyles: {
-      3: { halign: 'right' },
-      4: { halign: 'right' },
+      0: { cellWidth: 50 },
+      1: { cellWidth: 45 },
+      2: { cellWidth: 25 },
+      3: { halign: 'right', cellWidth: 30 },
+      4: { halign: 'right', cellWidth: 30 },
     },
   });
 
   let y = ((doc as any).lastAutoTable?.finalY || 120) + 8;
-  y = ensurePageSpace(doc, y, 45);
+  y = ensurePageSpace(doc, y, 30);
 
   doc.setFillColor(246, 248, 251);
-  doc.rect(14, y, 182, 28, 'F');
-  doc.setFontSize(10);
-  doc.text(`分項小計 / SUBTOTAL: ${formatCurrency(baseSubtotal)}`, 18, y + 8);
-  doc.text(`手動調整 / ADJUSTMENT: ${formatCurrency(adjustment)}`, 18, y + 15);
+  doc.rect(14, y, 182, 18, 'F');
   doc.setFontSize(12);
-  doc.text(`專案總費用 / TOTAL: ${formatCurrency(total)}`, 18, y + 23);
-  y += 34;
+  doc.text(`專案總費用 TOTAL: ${formatCurrency(total)}`, 18, y + 12);
+  y += 24;
 
-  // Workflow summary in quotation
+  // ========== SECTION 1: 施工流程區 / CONSTRUCTION WORKFLOW ==========
   y = ensurePageSpace(doc, y, 18);
   doc.setFontSize(11);
-  doc.text("施作流程摘要 / WORKFLOW SUMMARY", 14, y);
+  doc.text("施工流程 / CONSTRUCTION WORKFLOW", 14, y);
   y += 6;
   doc.setLineWidth(0.2);
   doc.line(14, y, 196, y);
   y += 4;
 
   (data.zones || []).forEach((zone, index) => {
-    const steps = getZoneWorkflowSteps(zone);
-    const stepText = steps.length
-      ? steps.map((step, i) => `${i + 1}.${step.name}`).join(" → ")
-      : "依現場評估流程執行";
+    const steps = getZoneWorkflowSteps(zone, dbMethods);
+    y = ensurePageSpace(doc, y, 14 + steps.length * 7);
 
-    y = ensurePageSpace(doc, y, 10);
-    doc.setFontSize(9);
+    // Zone header
+    doc.setFontSize(10);
+    doc.setTextColor(30, 30, 30);
     y = writeWrappedText(
       doc,
-      `${index + 1}. ${zone.zoneName || `區域 ${index + 1}`} (${getMethodDisplayName(zone.methodId, zone.methodName)}): ${stepText}`,
+      `> ${zone.zoneName || `區域 ${index + 1}`} / ${getMethodDisplayName(zone.methodId, zone.methodName)}`,
       16,
       y + 4.5,
       178,
       5
     );
+
+    // Steps as numbered list
+    if (steps.length) {
+      doc.setFontSize(9);
+      doc.setTextColor(80, 80, 80);
+      steps.forEach((step, i) => {
+        y = ensurePageSpace(doc, y, 8);
+        y = writeWrappedText(
+          doc,
+          `  ${i + 1}. ${step.name} - ${step.description}`,
+          20,
+          y + 3,
+          172,
+          5
+        );
+      });
+    } else {
+      doc.setFontSize(9);
+      doc.setTextColor(150, 150, 150);
+      y = writeWrappedText(doc, "  依現場評估流程執行", 20, y + 3, 172, 5);
+    }
+    doc.setTextColor(30, 30, 30);
+    y += 3;
   });
   y += 2;
 
-  // Material usage rules
+  // ========== SECTION 2: 品牌材料與特色區 / BRAND MATERIALS & FEATURES ==========
   y = ensurePageSpace(doc, y, 22);
   doc.setFontSize(11);
-  doc.text("主要材料使用規則 / MATERIAL RULES", 14, y);
+  doc.text("品牌材料與特色 / BRAND MATERIALS & FEATURES", 14, y);
   y += 6;
   doc.line(14, y, 196, y);
   y += 4;
+
+  // Load recipes + materials for brand info
+  let allRecipes: any[] = [];
+  let allMaterials: any[] = [];
+  try {
+    [allRecipes, allMaterials] = await Promise.all([getRecipes(), getMaterials()]);
+  } catch (e) {
+    console.warn('Failed to load recipes/materials for PDF', e);
+  }
+
+  const usedMethodIds = new Set((data.zones || []).map(z => z.methodId));
+  const relevantRecipes = allRecipes.filter(r => usedMethodIds.has(r.methodId));
+  const relevantMatIds = new Set(relevantRecipes.map(r => r.materialId));
+
+  // Filter: exclude 其他 (personnel costs etc.) and group by display category
+  const EXCLUDED_CATEGORIES = ['其他'];
+  const EXCLUDED_NAMES = ['人事費用'];
+  const relevantMaterials = allMaterials
+    .filter((m: any) => relevantMatIds.has(m.id))
+    .filter((m: any) => !EXCLUDED_CATEGORIES.includes(m.category))
+    .filter((m: any) => !EXCLUDED_NAMES.includes(m.name));
+
+  // Map categories to display groups
+  const CATEGORY_GROUP_MAP: Record<string, string> = {
+    '塗料': '防水塗料',
+    '防水材': '防水材',
+    '泥作/結構': '防水材',
+    '填縫/矽利康': '防水材',
+    '工具/設備': '工具',
+    '其他耗材': '耗材',
+  };
+
+  // Group materials
+  const grouped: Record<string, any[]> = {};
+  relevantMaterials.forEach((m: any) => {
+    const groupName = CATEGORY_GROUP_MAP[m.category] || m.category || '其他材料';
+    if (!grouped[groupName]) grouped[groupName] = [];
+    grouped[groupName].push(m);
+  });
+
+  const groupOrder = ['防水塗料', '防水材', '工具', '耗材'];
+  const sortedGroups = Object.keys(grouped).sort((a, b) => {
+    const ia = groupOrder.indexOf(a);
+    const ib = groupOrder.indexOf(b);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+
+  if (sortedGroups.length > 0) {
+    sortedGroups.forEach((groupName) => {
+      y = ensurePageSpace(doc, y, 16);
+      doc.setFontSize(9);
+      doc.text(`[ ${groupName} ]`, 16, y + 4);
+      y += 6;
+
+      const matRows = grouped[groupName].map((m: any) => [
+        m.brand || '-',
+        m.name,
+      ]);
+
+      autoTable(doc, {
+        startY: y,
+        head: [['品牌 BRAND', '材料 MATERIAL']],
+        body: matRows,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2, font: "NotoSansTC" },
+        headStyles: { fillColor: [60, 60, 60], textColor: 255, font: "NotoSansTC", fontStyle: "bold" },
+        columnStyles: {
+          0: { cellWidth: 40 },
+        },
+      });
+      y = ((doc as any).lastAutoTable?.finalY || y + 10) + 3;
+    });
+  }
+
+  // Material usage rules (feature descriptions)
   getCategoryList(data).forEach((category) => {
     const rule = CATEGORY_MATERIAL_RULES[category] || "依雙方確認材料規格與施作規則執行。";
     y = ensurePageSpace(doc, y, 10);
-    y = writeWrappedText(doc, `• ${category}: ${rule}`, 16, y + 4.5, 178, 5);
+    doc.setFontSize(9);
+    y = writeWrappedText(doc, `- ${category}: ${rule}`, 16, y + 4.5, 178, 5);
   });
-  y += 2;
+  y += 4;
 
-  // Notes and exclusions
+  // ========== SECTION 3: 保固說明區 / WARRANTY TERMS ==========
   y = ensurePageSpace(doc, y, 30);
   doc.setFontSize(11);
-  doc.text("說明事項 / NOTES, WARRANTY, EXCLUSIONS", 14, y);
+  doc.text("保固說明 / WARRANTY TERMS", 14, y);
   y += 6;
   doc.line(14, y, 196, y);
   y += 4;
-  const noteLines = [
-    ...getWarrantyClauses(data).map((clause) => `• ${clause}`),
-    "• 報價有效期 30 日，逾期需重新確認材料與工資成本。",
-    "• 未列入報價項目（如隱蔽管線、結構損傷擴大、第三方修復）屬追加範圍。",
-  ];
-  noteLines.forEach((line) => {
+
+  // Dynamic warranty per zone/method
+  const warrantyLines: string[] = [];
+  (data.zones || []).forEach((zone, index) => {
+    const method = getMethodById(zone.methodId, dbMethods);
+    const zoneName = zone.zoneName || `區域 ${index + 1}`;
+    if (method) {
+      const warrantyText = getMethodWarrantyText(
+        method.warrantyType,
+        method.warrantyMonths,
+        method.warrantyVisits
+      );
+      warrantyLines.push(`- ${zoneName} (${zone.methodName}): ${warrantyText}`);
+    } else {
+      // Fallback to category-based warranty
+      const catWarranty = CATEGORY_WARRANTY_RULES[zone.category as ServiceCategory];
+      warrantyLines.push(`- ${zoneName}: ${catWarranty || '保固條件依雙方簽署文件為準。'}`);
+    }
+  });
+
+  if (warrantyLines.length === 0) {
+    warrantyLines.push("- 保固條件依雙方簽署文件為準。");
+  }
+
+  // Add exclusions
+  warrantyLines.push("- 保固排除: 天災、結構新增裂縫、第三方施工破壞、人為不當使用。");
+  warrantyLines.push("- 報價有效期 30 日, 逾期需重新確認材料與工資成本。");
+  warrantyLines.push("- 未列入報價項目 (如隱蔽管線、結構損傷擴大、第三方修復) 屬追加範圍。");
+
+  doc.setFontSize(9);
+  warrantyLines.forEach((line) => {
     y = ensurePageSpace(doc, y, 10);
     y = writeWrappedText(doc, line, 16, y + 4.5, 178, 5);
   });
@@ -608,6 +798,9 @@ export const generateQuotationPDF = async (data: CaseData, mode: 'save' | 'previ
 export const generateContractPDF = async (data: CaseData, mode: 'save' | 'preview' = 'save') => {
   const doc = new jsPDF();
   await loadFont(doc);
+
+  // Pre-load methods from database
+  const dbMethods = await loadDbMethods();
 
   setupDocument(doc, "SERVICE CONTRACT", "工程承攬合約書");
 
@@ -642,9 +835,9 @@ export const generateContractPDF = async (data: CaseData, mode: 'save' | 'previe
 
   autoTable(doc, {
     startY: y + 2,
-    head: [['區域 / ZONE', '工法 / METHOD', '施作內容 / SCOPE DETAIL']],
+    head: [['區域', '工法', '施作內容']],
     body: (data.zones || []).map((zone, index) => {
-      const steps = getZoneWorkflowSteps(zone).map((step) => step.name).join(" → ") || "依現勘評估內容";
+      const steps = getZoneWorkflowSteps(zone, dbMethods).map((step) => step.name).join(" -> ") || "依現勘評估內容";
       return [
         `${index + 1}. ${zone.zoneName || `區域 ${index + 1}`}`,
         getMethodDisplayName(zone.methodId, zone.methodName),
@@ -652,8 +845,12 @@ export const generateContractPDF = async (data: CaseData, mode: 'save' | 'previe
       ];
     }),
     theme: 'grid',
-    styles: { fontSize: 9, cellPadding: 4, font: "NotoSansTC" },
-    headStyles: { fillColor: [30, 30, 30], textColor: 255 },
+    styles: { fontSize: 8, cellPadding: 2.5, font: "NotoSansTC" },
+    headStyles: { fillColor: [30, 30, 30], textColor: 255, font: "NotoSansTC", fontStyle: "bold" },
+    columnStyles: {
+      0: { cellWidth: 40 },
+      1: { cellWidth: 35 },
+    },
   });
 
   y = ((doc as any).lastAutoTable?.finalY || y + 40) + 8;
@@ -675,13 +872,32 @@ export const generateContractPDF = async (data: CaseData, mode: 'save' | 'previe
   y += 4;
   doc.line(14, y, 196, y);
   y += 5;
-  const acceptanceAndWarranty = [
+
+  // Dynamic warranty per zone
+  const contractWarrantyLines: string[] = [
     "1) 驗收標準：施工區域完成後應達無明顯滲漏、鼓起、剝落；表面平整且收邊完整。",
     "2) 驗收程序：甲乙雙方現場共同點交，未完成項目由乙方限期改善。",
-    ...getWarrantyClauses(data).map((clause, index) => `${index + 3}) ${clause}`),
-    "保固排除：天災、結構新增裂縫、第三方施工破壞、人為不當使用、未按建議保養者。",
   ];
-  acceptanceAndWarranty.forEach((line) => {
+
+  (data.zones || []).forEach((zone, index) => {
+    const method = getMethodById(zone.methodId, dbMethods);
+    const zoneName = zone.zoneName || `區域 ${index + 1}`;
+    if (method) {
+      const warrantyText = getMethodWarrantyText(
+        method.warrantyType,
+        method.warrantyMonths,
+        method.warrantyVisits
+      );
+      contractWarrantyLines.push(`${contractWarrantyLines.length + 1}) ${zoneName} (${zone.methodName}): ${warrantyText}`);
+    } else {
+      const catWarranty = CATEGORY_WARRANTY_RULES[zone.category as ServiceCategory];
+      contractWarrantyLines.push(`${contractWarrantyLines.length + 1}) ${catWarranty || '保固條件依雙方簽署文件為準。'}`);
+    }
+  });
+
+  contractWarrantyLines.push(`${contractWarrantyLines.length + 1}) 保固排除: 天災、結構新增裂縫、第三方施工破壞、人為不當使用、未按建議保養者。`);
+
+  contractWarrantyLines.forEach((line) => {
     y = ensurePageSpace(doc, y, 10);
     y = writeWrappedText(doc, line, 16, y, 178, 5);
   });
@@ -764,7 +980,7 @@ export const generateInvoicePDF = async (data: CaseData, type: 'DEPOSIT' | 'FINA
     body: tableBody,
     theme: 'grid',
     styles: { fontSize: 11, cellPadding: 8, font: "NotoSansTC" },
-    headStyles: { fillColor: [50, 50, 50], textColor: 255 },
+    headStyles: { fillColor: [50, 50, 50], textColor: 255, font: "NotoSansTC", fontStyle: "bold" },
     columnStyles: {
       1: { halign: 'right' }
     }

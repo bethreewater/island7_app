@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { Layout } from '../components/Layout';
 import { Card, Button, Input, Select } from '../components/InputComponents';
 import { QuickCalculator } from '../components/QuickCalculator';
-import { MethodItem, ServiceCategory, MethodStep, Material, MethodRecipe, MaterialCategory, NavigationView } from '../types';
+import { MethodItem, ServiceCategory, MethodStep, Material, MethodRecipe, MaterialCategory, NavigationView, WarrantyType } from '../types';
 import { getMethods, saveMethod, deleteMethod, getMaterials, getRecipes, upsertRecipe, deleteRecipe, upsertMaterial, deleteMaterial } from '../services/storageService';
 import { Plus, Trash2, Save, ChevronRight, Layers, Clock, ArrowLeft, FolderOpen } from 'lucide-react';
 
@@ -442,6 +442,8 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
       defaultUnit: '坪',
       defaultUnitPrice: 0,
       estimatedDays: 1,
+      warrantyType: 'leak_handled',
+      warrantyMonths: 12,
       steps: [{ name: '第一工序', description: '', prepMinutes: 0, execMinutes: 60 }]
     };
     setEditingMethod(newMethod);
@@ -523,6 +525,60 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
               <div className="grid grid-cols-2 gap-4">
                 <Input label="計價單位 / UNIT" value={editingMethod.defaultUnit} onChange={e => setEditingMethod({ ...editingMethod, defaultUnit: e.target.value })} />
                 <Input label="預設單價 / UNIT PRICE" type="number" value={editingMethod.defaultUnitPrice} onChange={e => setEditingMethod({ ...editingMethod, defaultUnitPrice: parseInt(e.target.value) || 0 })} />
+              </div>
+            </div>
+          </Card>
+
+          {/* 保固設定 / WARRANTY CONFIG */}
+          <Card title="保固設定 / WARRANTY CONFIG">
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1 block">漏水源處理狀態 / LEAK SOURCE</label>
+                  <select
+                    className="w-full bg-white border border-zinc-200 rounded-sm p-2 text-sm font-bold outline-none focus:border-black transition-colors"
+                    value={editingMethod.warrantyType || 'leak_handled'}
+                    onChange={e => setEditingMethod({ ...editingMethod, warrantyType: e.target.value as WarrantyType })}
+                  >
+                    <option value="leak_handled">有處理漏水源</option>
+                    <option value="leak_unhandled">無法處理漏水源</option>
+                    <option value="leak_ignored">不處理漏水源</option>
+                  </select>
+                </div>
+
+                {(editingMethod.warrantyType || 'leak_handled') !== 'leak_ignored' && (
+                  <Input
+                    label="保固月數 / WARRANTY MONTHS"
+                    type="number"
+                    value={editingMethod.warrantyMonths ?? 12}
+                    onChange={e => setEditingMethod({ ...editingMethod, warrantyMonths: parseInt(e.target.value) || 0 })}
+                  />
+                )}
+
+                {(editingMethod.warrantyType) === 'leak_unhandled' && (
+                  <Input
+                    label="保固次數 / WARRANTY VISITS"
+                    type="number"
+                    value={editingMethod.warrantyVisits ?? 1}
+                    onChange={e => setEditingMethod({ ...editingMethod, warrantyVisits: parseInt(e.target.value) || 0 })}
+                  />
+                )}
+              </div>
+
+              {/* 保固預覽 / WARRANTY PREVIEW */}
+              <div className="bg-zinc-50 p-4 rounded-sm border border-zinc-200">
+                <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-2">保固條件預覽 / WARRANTY PREVIEW</div>
+                <div className="text-sm font-bold text-zinc-800">
+                  {(editingMethod.warrantyType || 'leak_handled') === 'leak_handled' && (
+                    <span>✅ 有處理漏水源：{Math.floor((editingMethod.warrantyMonths ?? 12) / 12)} 年{(editingMethod.warrantyMonths ?? 12) % 12 > 0 ? ` ${(editingMethod.warrantyMonths ?? 12) % 12} 個月` : ''}保固</span>
+                  )}
+                  {editingMethod.warrantyType === 'leak_unhandled' && (
+                    <span>⚠️ 無法處理漏水源：{Math.floor((editingMethod.warrantyMonths ?? 12) / 12)} 年{(editingMethod.warrantyMonths ?? 12) % 12 > 0 ? ` ${(editingMethod.warrantyMonths ?? 12) % 12} 個月` : ''} {editingMethod.warrantyVisits ?? 1} 次保固</span>
+                  )}
+                  {editingMethod.warrantyType === 'leak_ignored' && (
+                    <span>❌ 不處理漏水源：不提供保固</span>
+                  )}
+                </div>
               </div>
             </div>
           </Card>

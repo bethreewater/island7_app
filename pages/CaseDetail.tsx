@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Calculator, FileCheck, Layers, Calendar as CalendarIcon,
-  Wand2, CheckCircle2, ChevronRight, Plus, Eye,
+  Wand2, CheckCircle2, ChevronRight, ChevronDown, Plus, Eye,
   FileText, ShieldCheck, Package, Edit
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -64,6 +64,7 @@ export const CaseDetail: React.FC<{
   const [localData, setLocalData] = useState<CaseData>(caseData);
   const [methods, setMethods] = useState<MethodItem[]>([]);
   const [loading, setLoading] = useState(!caseData.zones);
+  const [workflowOpen, setWorkflowOpen] = useState(false);
 
   // Ref to track if the update originated from this component
   const isSelfUpdate = React.useRef(false);
@@ -546,29 +547,38 @@ export const CaseDetail: React.FC<{
         {/* TAB 5: LOG */}
         {activeTab === 'log' && (
           <div className="space-y-6">
-            <Card title="工法流程對照 / WORKFLOW REFERENCE">
-              <div className="space-y-4">
-                {workflowReference.length === 0 && (
-                  <div className="text-sm text-zinc-400">尚未設定區域與工法，無法對照流程。</div>
-                )}
-                {workflowReference.map((item, index) => (
-                  <div key={`${item.zoneName}-${index}`} className="border border-zinc-100 rounded-sm p-3 space-y-2">
-                    <div className="text-[11px] font-black text-zinc-900">
-                      {item.zoneName} / {item.methodName}
+            <div className="bg-white border border-zinc-100 rounded-sm shadow-sm">
+              <button
+                onClick={() => setWorkflowOpen(!workflowOpen)}
+                className="w-full flex items-center justify-between p-4 text-left hover:bg-zinc-50 transition-colors"
+              >
+                <span className="text-sm font-black text-zinc-950 uppercase tracking-tight">工法流程對照 / WORKFLOW REFERENCE</span>
+                <ChevronDown size={18} className={`text-zinc-400 transition-transform duration-200 ${workflowOpen ? '' : '-rotate-90'}`} />
+              </button>
+              {workflowOpen && (
+                <div className="border-t border-zinc-100 p-4 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                  {workflowReference.length === 0 && (
+                    <div className="text-sm text-zinc-400">尚未設定區域與工法，無法對照流程。</div>
+                  )}
+                  {workflowReference.map((item, index) => (
+                    <div key={`${item.zoneName}-${index}`} className="border border-zinc-100 rounded-sm p-3 space-y-2">
+                      <div className="text-[11px] font-black text-zinc-900">
+                        {item.zoneName} / {item.methodName}
+                      </div>
+                      <div className="text-xs text-zinc-600 flex flex-wrap gap-2">
+                        {item.steps.length > 0
+                          ? item.steps.map((step, stepIndex) => (
+                            <span key={`${step.name}-${stepIndex}`} className="px-2 py-1 bg-zinc-50 border border-zinc-100 rounded-sm">
+                              {stepIndex + 1}. {step.name}
+                            </span>
+                          ))
+                          : <span className="text-zinc-400">未找到工法步驟</span>}
+                      </div>
                     </div>
-                    <div className="text-xs text-zinc-600 flex flex-wrap gap-2">
-                      {item.steps.length > 0
-                        ? item.steps.map((step, stepIndex) => (
-                          <span key={`${step.name}-${stepIndex}`} className="px-2 py-1 bg-zinc-50 border border-zinc-100 rounded-sm">
-                            {stepIndex + 1}. {step.name}
-                          </span>
-                        ))
-                        : <span className="text-zinc-400">未找到工法步驟</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <ConstructionLogTab
               schedule={localData.schedule}

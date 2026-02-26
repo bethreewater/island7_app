@@ -84,6 +84,8 @@ export interface MethodStep {
   execMinutes: number;
 }
 
+export type WarrantyType = 'leak_handled' | 'leak_unhandled' | 'leak_ignored';
+
 export interface MethodItem {
   id: string;
   category: ServiceCategory;
@@ -94,6 +96,11 @@ export interface MethodItem {
   description?: string;
   steps: MethodStep[];
   estimatedDays: number;
+
+  // 保固設定 / WARRANTY CONFIG
+  warrantyType?: WarrantyType;    // 漏水源處理狀態
+  warrantyMonths?: number;        // 主保固月數
+  warrantyVisits?: number;        // leak_unhandled 時的保固次數
 }
 
 export interface ScheduleTask {
@@ -123,6 +130,7 @@ export interface ConstructionLog {
   endTime?: string;
   delayDays?: number;
   isNoWorkDay?: boolean;
+  materialsUsed?: { brand: string; name: string }[];  // 今日使用材料
 }
 
 export interface ConstructionItem {

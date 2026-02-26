@@ -6,6 +6,7 @@ export const METHOD_CATALOG: MethodItem[] = [
   {
     id: 'WC-01', category: ServiceCategory.WALL_CANCER, name: '基礎壁癌遮蓋方案', englishName: 'Basic Cover',
     defaultUnit: '坪', defaultUnitPrice: 6390, estimatedDays: 6,
+    warrantyType: 'leak_handled', warrantyMonths: 12,
     steps: [
       { name: '壁癌刮除 / SCRAPE', description: '確實刮除粉化層', prepMinutes: 3, execMinutes: 30 },
       { name: '消毒處理 / DISINFECT', description: '1:10 消毒噴灑', prepMinutes: 5, execMinutes: 33 },
@@ -17,6 +18,7 @@ export const METHOD_CATALOG: MethodItem[] = [
   {
     id: 'WC-02', category: ServiceCategory.WALL_CANCER, name: '高效防霉滲透方案', englishName: 'Premium Anti-Mold',
     defaultUnit: '坪', defaultUnitPrice: 8800, estimatedDays: 7,
+    warrantyType: 'leak_handled', warrantyMonths: 12,
     steps: [
       { name: '深層清刷 / SCRUB', description: '深層清除黴菌孢子', prepMinutes: 10, execMinutes: 45 },
       { name: '抗鹼封閉 / SEAL', description: '底漆封閉鹼性物質', prepMinutes: 15, execMinutes: 20 },
@@ -28,6 +30,7 @@ export const METHOD_CATALOG: MethodItem[] = [
   {
     id: 'WC-03', category: ServiceCategory.WALL_CANCER, name: '結構型壁癌根治', englishName: 'Structural Cure',
     defaultUnit: '坪', defaultUnitPrice: 12500, estimatedDays: 10,
+    warrantyType: 'leak_handled', warrantyMonths: 12,
     steps: [
       { name: '打除見底 / DEMOLISH', description: '打除至結構層', prepMinutes: 20, execMinutes: 120 },
       { name: '結構修復 / STRUCT', description: '樹脂砂漿修補', prepMinutes: 30, execMinutes: 60 },
@@ -41,6 +44,7 @@ export const METHOD_CATALOG: MethodItem[] = [
   {
     id: 'WP-01', category: ServiceCategory.WALL_WATERPROOF, name: '外牆透明防水膜', englishName: 'Clear Membrane',
     defaultUnit: '坪', defaultUnitPrice: 4500, estimatedDays: 3,
+    warrantyType: 'leak_handled', warrantyMonths: 24,
     steps: [
       { name: '高壓清洗 / WASH', description: '清除牆面髒汙', prepMinutes: 30, execMinutes: 60 },
       { name: '透明底漆 / BASE', description: '增加附著力', prepMinutes: 15, execMinutes: 40 },
@@ -50,6 +54,7 @@ export const METHOD_CATALOG: MethodItem[] = [
   {
     id: 'WP-02', category: ServiceCategory.WALL_WATERPROOF, name: '外牆彩色耐候漆', englishName: 'Weather-Shield',
     defaultUnit: '坪', defaultUnitPrice: 5800, estimatedDays: 4,
+    warrantyType: 'leak_handled', warrantyMonths: 24,
     steps: [
       { name: '底層修補 / PATCH', description: '裂縫細微修補', prepMinutes: 20, execMinutes: 60 },
       { name: '彈性底漆 / FLEX-B', description: '優質彈性底漆', prepMinutes: 15, execMinutes: 45 },
@@ -60,6 +65,7 @@ export const METHOD_CATALOG: MethodItem[] = [
   {
     id: 'RF-01', category: ServiceCategory.ROOF_WATERPROOF, name: '頂樓五層式隔熱', englishName: 'Roof 5-Layer',
     defaultUnit: '坪', defaultUnitPrice: 7500, estimatedDays: 7,
+    warrantyType: 'leak_handled', warrantyMonths: 24,
     steps: [
       { name: '舊料清除 / REMOVE', description: '清除舊有起泡層', prepMinutes: 30, execMinutes: 120 },
       { name: '素地整修 / CLEAN', description: '整平與灰塵清潔', prepMinutes: 20, execMinutes: 60 },
@@ -74,6 +80,7 @@ export const METHOD_CATALOG: MethodItem[] = [
   {
     id: 'CR-01', category: ServiceCategory.CRACK, name: '環氧樹脂灌注', englishName: 'Epoxy Injection',
     defaultUnit: '米', defaultUnitPrice: 2200, estimatedDays: 3,
+    warrantyType: 'leak_handled', warrantyMonths: 12,
     steps: [
       { name: '鑽孔打頭 / DRILL', description: '依間距設置針頭', prepMinutes: 15, execMinutes: 45 },
       { name: '封縫處理 / SEAL', description: '快乾膠封閉縫隙', prepMinutes: 10, execMinutes: 30 },
@@ -84,6 +91,7 @@ export const METHOD_CATALOG: MethodItem[] = [
   {
     id: 'CR-02', category: ServiceCategory.CRACK, name: 'V-Cut 裂縫修補', englishName: 'V-Cut Repair',
     defaultUnit: '米', defaultUnitPrice: 1200, estimatedDays: 2,
+    warrantyType: 'leak_handled', warrantyMonths: 12,
     steps: [
       { name: '開槽處理 / CUT', description: '切割 V 型槽', prepMinutes: 10, execMinutes: 30 },
       { name: '清潔除塵 / DUST', description: '強力除塵吹氣', prepMinutes: 5, execMinutes: 15 },
@@ -96,6 +104,7 @@ export const METHOD_CATALOG: MethodItem[] = [
   {
     id: 'ST-01', category: ServiceCategory.STRUCTURE, name: '鋼筋防鏽結構補強', englishName: 'Steel Reinforce',
     defaultUnit: '處', defaultUnitPrice: 4500, estimatedDays: 4,
+    warrantyType: 'leak_handled', warrantyMonths: 12,
     steps: [
       { name: '鏽蝕除皮 / SCRAPE', description: '剔除鬆動水泥', prepMinutes: 15, execMinutes: 45 },
       { name: '除鏽工程 / RUST-R', description: '鋼筋除鏽拋光', prepMinutes: 10, execMinutes: 30 },
@@ -108,6 +117,7 @@ export const METHOD_CATALOG: MethodItem[] = [
   {
     id: 'SL-01', category: ServiceCategory.SILICONE_BATH, name: '浴室防霉矽利康', englishName: 'Bath Silicone',
     defaultUnit: '米', defaultUnitPrice: 350, estimatedDays: 1,
+    warrantyType: 'leak_handled', warrantyMonths: 12,
     steps: [
       { name: '舊膠切除 / CUT', description: '完整切除霉變膠條', prepMinutes: 10, execMinutes: 30 },
       { name: '溶劑清潔 / CLEAN', description: '酒精去油處理', prepMinutes: 5, execMinutes: 15 },
@@ -117,6 +127,7 @@ export const METHOD_CATALOG: MethodItem[] = [
   {
     id: 'SL-02', category: ServiceCategory.SILICONE_WINDOW, name: '門窗耐候矽利康', englishName: 'Window Silicone',
     defaultUnit: '米', defaultUnitPrice: 450, estimatedDays: 1,
+    warrantyType: 'leak_handled', warrantyMonths: 12,
     steps: [
       { name: '舊膠剔除 / STRIP', description: '外部耐候膠剔除', prepMinutes: 10, execMinutes: 40 },
       { name: '底膠塗抹 / BASE', description: '塗抹接著底漆', prepMinutes: 5, execMinutes: 15 },
