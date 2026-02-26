@@ -196,7 +196,7 @@ const LogEntry: React.FC<{
 };
 
 // ==================== CALENDAR VIEW ====================
-type DayStatus = 'logged' | 'delayed' | 'scheduled_unlogged' | 'none';
+type DayStatus = 'logged' | 'delayed' | 'scheduled_unlogged' | 'planned' | 'none';
 
 const CalendarView: React.FC<{
     logs: ConstructionLog[];
@@ -233,13 +233,17 @@ const CalendarView: React.FC<{
             }
         });
 
-        // Mark scheduled but unlogged days
+        // Mark scheduled days - past unlogged = red, future without log = blue
         schedule.forEach(task => {
-            if (task.date.startsWith(monthStr) && task.date <= today) {
+            if (task.date.startsWith(monthStr)) {
                 const day = parseInt(task.date.slice(8, 10));
                 const hasLog = logs.some(l => l.date === task.date);
                 if (!hasLog && !map[day]) {
-                    map[day] = { status: 'scheduled_unlogged', logCount: 0, hasDelay: false };
+                    map[day] = {
+                        status: task.date <= today ? 'scheduled_unlogged' : 'planned',
+                        logCount: 0,
+                        hasDelay: false
+                    };
                 }
             }
         });
@@ -276,7 +280,10 @@ const CalendarView: React.FC<{
                     <div className="w-3 h-3 rounded-sm bg-amber-400" /> 延期
                 </div>
                 <div className="flex items-center gap-1.5 text-[9px] font-bold text-zinc-500">
-                    <div className="w-3 h-3 rounded-sm bg-red-400" /> 未紀錄
+                    <div className="w-3 h-3 rounded-sm bg-red-400" /> 未紀錄（已過期）
+                </div>
+                <div className="flex items-center gap-1.5 text-[9px] font-bold text-zinc-500">
+                    <div className="w-3 h-3 rounded-sm bg-blue-400" /> 表定施工日
                 </div>
             </div>
 
@@ -322,6 +329,11 @@ const CalendarView: React.FC<{
                                 bgClass = 'bg-red-50 hover:bg-red-100';
                                 textClass = 'text-red-700';
                                 dotClass = 'bg-red-400';
+                                break;
+                            case 'planned':
+                                bgClass = 'bg-blue-50 hover:bg-blue-100';
+                                textClass = 'text-blue-700';
+                                dotClass = 'bg-blue-400';
                                 break;
                         }
                     }
