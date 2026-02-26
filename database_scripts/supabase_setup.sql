@@ -31,7 +31,10 @@ CREATE TABLE IF NOT EXISTS methods (
   "defaultUnitPrice" numeric DEFAULT 0,
   "description" text,
   "steps" jsonb DEFAULT '[]'::jsonb,
-  "estimatedDays" numeric DEFAULT 0
+  "estimatedDays" numeric DEFAULT 0,
+  "warrantyType" text DEFAULT 'leak_handled',
+  "warrantyMonths" numeric DEFAULT 12,
+  "warrantyVisits" numeric DEFAULT 1
 );
 
 -- 3. 啟用 Row Level Security (RLS) 安全性設定
