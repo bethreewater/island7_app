@@ -9,6 +9,19 @@ import { ScheduleTask, ConstructionLog } from '../../types';
 import { Button, Card, Input, Select, ImageUploader } from '../InputComponents';
 import { STANDARD_LOG_ACTIONS } from '../../constants';
 
+// Local timezone date helper (avoids UTC off-by-one issues)
+const toLocalDate = (d: Date = new Date()) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+};
+const addDays = (dateStr: string, n: number) => {
+    const d = new Date(dateStr + 'T12:00:00');
+    d.setDate(d.getDate() + n);
+    return toLocalDate(d);
+};
+
 // Helper Components
 const PunchButton = ({ label, subLabel, icon, active, onClick }: { label: string, subLabel: string, icon: React.ReactNode, active: boolean, onClick: () => void }) => {
     const iconClasses = "w-8 h-8 md:w-[18px] md:h-[18px]";
@@ -77,9 +90,16 @@ const LogEditForm: React.FC<{
                             <div className="font-black text-amber-900">自動順延 1 天</div>
                         </div>
                     ) : (
-                        <Select label="施作工項 / ACTION" value={logForm.action} onChange={e => setLogForm({ ...logForm, action: e.target.value })}>
-                            {STANDARD_LOG_ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
-                        </Select>
+                        logForm.action && !STANDARD_LOG_ACTIONS.includes(logForm.action) ? (
+                            <div className="bg-zinc-50 p-3 rounded-sm border border-zinc-200">
+                                <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1">施作工項 / ACTION</div>
+                                <div className="text-sm font-black text-zinc-800">{logForm.action}</div>
+                            </div>
+                        ) : (
+                            <Select label="施作工項 / ACTION" value={logForm.action} onChange={e => setLogForm({ ...logForm, action: e.target.value })}>
+                                {STANDARD_LOG_ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+                            </Select>
+                        )
                     )}
                 </div>
                 {!logForm.isNoWorkDay && (
@@ -212,12 +232,12 @@ const CalendarView: React.FC<{
     // Build day status map for this month
     const dayStatusMap = useMemo(() => {
         const map: Record<number, { status: DayStatus; logCount: number; hasDelay: boolean }> = {};
-        const today = new Date().toISOString().slice(0, 10);
+        const today = toLocalDate();
         const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
 
-        // Mark days with logs
+        // Mark days with real (user-edited) logs only
         logs.forEach(log => {
-            if (log.date.startsWith(monthStr)) {
+            if (log.date.startsWith(monthStr) && !log.description?.startsWith('[系統自動生成]')) {
                 const day = parseInt(log.date.slice(8, 10));
                 if (!map[day]) map[day] = { status: 'logged', logCount: 0, hasDelay: false };
                 map[day].logCount++;
@@ -237,8 +257,8 @@ const CalendarView: React.FC<{
         schedule.forEach(task => {
             if (task.date.startsWith(monthStr)) {
                 const day = parseInt(task.date.slice(8, 10));
-                const hasLog = logs.some(l => l.date === task.date);
-                if (!hasLog && !map[day]) {
+                const hasRealLog = logs.some(l => l.date === task.date && !l.description?.startsWith('[系統自動生成]'));
+                if (!hasRealLog && !map[day]) {
                     map[day] = {
                         status: task.date <= today ? 'scheduled_unlogged' : 'planned',
                         logCount: 0,
@@ -253,7 +273,7 @@ const CalendarView: React.FC<{
 
     const firstDayOfMonth = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = toLocalDate();
 
     const prevMonth = () => onChangeMonth(new Date(year, month - 1, 1));
     const nextMonth = () => onChangeMonth(new Date(year, month + 1, 1));
@@ -378,7 +398,23 @@ export const ConstructionLogTab: React.FC<{
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [calendarMonth, setCalendarMonth] = useState<Date>(() => new Date());
+    const [hasAutoNavigated, setHasAutoNavigated] = useState(false);
     const editRef = useRef<HTMLDivElement>(null);
+
+    // Auto-navigate calendar to first unlogged scheduled date
+    useEffect(() => {
+        if (hasAutoNavigated || schedule.length === 0) return;
+        const realLogDates = new Set(logs.filter(l => !l.description?.startsWith('[系統自動生成]')).map(l => l.date));
+        const firstUnlogged = [...schedule]
+            .sort((a, b) => a.date.localeCompare(b.date))
+            .find(t => !realLogDates.has(t.date));
+        if (firstUnlogged) {
+            const [y, m] = firstUnlogged.date.split('-').map(Number);
+            setCalendarMonth(new Date(y, m - 1, 1));
+            setSelectedDate(firstUnlogged.date);
+        }
+        setHasAutoNavigated(true);
+    }, [schedule, logs, hasAutoNavigated]);
 
     useEffect(() => {
         if (editingLogId && editRef.current) {
@@ -399,12 +435,37 @@ export const ConstructionLogTab: React.FC<{
 
     const startNew = () => {
         const id = `LOG-${Date.now()}`;
+        const loggedDates = new Set(logs.map(l => l.date));
+        const today = toLocalDate();
+
+        // Find the first unlogged date: check schedule first, then find next sequential day after last log
+        let defaultDate = today;
+        if (selectedDate) {
+            defaultDate = selectedDate;
+        } else if (schedule.length > 0) {
+            // First scheduled date without a log
+            const nextUnlogged = [...schedule]
+                .sort((a, b) => a.date.localeCompare(b.date))
+                .find(t => !loggedDates.has(t.date));
+            if (nextUnlogged) defaultDate = nextUnlogged.date;
+        } else if (logs.length > 0) {
+            // No schedule: find the day after last logged date
+            const sortedDates = Array.from(loggedDates).sort();
+            const lastDate = sortedDates[sortedDates.length - 1];
+            defaultDate = addDays(lastDate as string, 1);
+        }
+
         setEditingLogId(id);
         setLogForm({
-            id, date: selectedDate || new Date().toISOString().slice(0, 10), weather: '晴天',
+            id, date: defaultDate, weather: '晴天',
             action: STANDARD_LOG_ACTIONS[0], description: '', beforePhotos: [], afterPhotos: [],
             startTime: '', breaks: [], endTime: '', delayDays: 0, isNoWorkDay: false, materialsUsed: []
         });
+
+        // Navigate calendar to that date
+        setSelectedDate(defaultDate);
+        const [y, m] = defaultDate.split('-').map(Number);
+        setCalendarMonth(new Date(y, m - 1, 1));
     };
 
     const getCurrentTime = () => new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
@@ -428,8 +489,7 @@ export const ConstructionLogTab: React.FC<{
         if (delay > 0) {
             updatedSchedule = schedule.map(task => {
                 if (task.date >= finalLog.date && !task.isCompleted) {
-                    const d = new Date(task.date); d.setDate(d.getDate() + delay);
-                    return { ...task, date: d.toISOString().slice(0, 10) };
+                    return { ...task, date: addDays(task.date, delay) };
                 }
                 return task;
             });
@@ -443,7 +503,7 @@ export const ConstructionLogTab: React.FC<{
     };
 
     const autoSyncFromSchedule = () => {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = toLocalDate();
         const pendingTasks = schedule.filter(task => task.date <= today && !logs.some(l => l.date === task.date && l.action.includes(task.taskName)));
         if (pendingTasks.length === 0) { toast('所有排程皆已同步', { icon: 'ℹ️' }); return; }
         const autoLogs: ConstructionLog[] = pendingTasks.map(task => ({

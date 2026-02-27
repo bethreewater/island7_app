@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { geocodeAddress } from '../services/geocodingService';
-import { CaseData, MethodItem, ServiceCategory, CaseStatus, STATUS_LABELS, ScheduleTask, NavigationView, normalizeCaseStatus } from '../types';
+import { CaseData, MethodItem, ServiceCategory, CaseStatus, STATUS_LABELS, ScheduleTask, ConstructionLog, NavigationView, normalizeCaseStatus } from '../types';
 import { getMethods, saveCase, formalizeCase, getCaseDetails } from '../services/storageService';
 import { Button, Card, Input } from '../components/InputComponents';
 import { Layout } from '../components/Layout';
@@ -133,8 +133,17 @@ export const CaseDetail: React.FC<{
       toast.error("請先設定開工日期");
       return;
     }
-    const baseDate = new Date(localData.startDate);
+    // Parse date correctly: "YYYY-MM-DD" -> local date (avoid UTC offset issues)
+    const [sy, sm, sd] = localData.startDate.split('-').map(Number);
+    const baseDate = new Date(sy, sm - 1, sd);
     const newSchedule: ScheduleTask[] = [];
+
+    const formatDate = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
 
     if (localData.zones) {
       localData.zones.forEach(zone => {
@@ -143,14 +152,31 @@ export const CaseDetail: React.FC<{
         method.steps.forEach((step, sIdx) => {
           const taskDate = new Date(baseDate);
           taskDate.setDate(taskDate.getDate() + sIdx);
-          newSchedule.push({ taskId: `${zone.zoneId}-${sIdx}`, date: taskDate.toISOString().slice(0, 10), zoneName: zone.zoneName, taskName: step.name, isCompleted: false });
+          newSchedule.push({ taskId: `${zone.zoneId}-${sIdx}`, date: formatDate(taskDate), zoneName: zone.zoneName, taskName: step.name, isCompleted: false });
         });
       });
     }
-    handleUpdate({ ...localData, schedule: newSchedule });
-    toast.success("排程已根據工法步驟自動產出", {
-      icon: '📅',
-    });
+    // Auto-sync: create construction log entries for past/today scheduled dates
+    const today = formatDate(new Date());
+    const existingLogDates = new Set((localData.logs || []).map(l => l.date));
+    const autoLogs: ConstructionLog[] = newSchedule
+      .filter(task => task.date <= today && !existingLogDates.has(task.date))
+      .map(task => ({
+        id: `LOG-AUTO-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        date: task.date,
+        weather: '晴天',
+        action: `${task.taskName} / ${task.zoneName}`,
+        description: '[系統自動生成] 請點擊編輯補充內容。',
+        beforePhotos: [], afterPhotos: [],
+        startTime: '', breaks: [], endTime: '',
+        delayDays: 0, isNoWorkDay: false, materialsUsed: []
+      }));
+
+    const mergedLogs = [...autoLogs, ...(localData.logs || [])].sort((a, b) => b.date.localeCompare(a.date));
+    handleUpdate({ ...localData, schedule: newSchedule, logs: mergedLogs });
+
+    const logMsg = autoLogs.length > 0 ? `，同步 ${autoLogs.length} 筆日誌` : '';
+    toast.success(`排程 ${newSchedule.length} 筆已產出${logMsg}`, { icon: '📅' });
   }, [localData, methods, handleUpdate]);
 
 
@@ -537,7 +563,7 @@ export const CaseDetail: React.FC<{
             </Card>
 
             <ProjectCalendar
-              schedule={localData.schedule}
+              schedule={localData.schedule || []}
               logs={localData.logs || []}
               onUpdate={(s) => handleUpdate({ ...localData, schedule: s })}
             />
@@ -581,7 +607,7 @@ export const CaseDetail: React.FC<{
             </div>
 
             <ConstructionLogTab
-              schedule={localData.schedule}
+              schedule={localData.schedule || []}
               logs={localData.logs || []}
               onUpdate={(newLogs, updatedSchedule) => {
                 const newData = { ...localData, logs: newLogs };
