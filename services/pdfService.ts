@@ -190,6 +190,16 @@ const writeWrappedText = (
   return y + (lines.length * lineHeight);
 };
 
+const truncateTextToWidth = (doc: jsPDF, text: string, maxWidth: number) => {
+  if (doc.getTextWidth(text) <= maxWidth) return text;
+  const suffix = '...';
+  let trimmed = text;
+  while (trimmed.length > 0 && doc.getTextWidth(`${trimmed}${suffix}`) > maxWidth) {
+    trimmed = trimmed.slice(0, -1);
+  }
+  return `${trimmed}${suffix}`;
+};
+
 const getZoneSubtotal = (zone: Zone): number =>
   (zone.items || []).reduce((sum, item) => sum + (item.itemPrice || 0), 0);
 
@@ -314,10 +324,49 @@ const getMethodWarrantyText = (
 // PDF STYLING - BILINGUAL & ROBUST
 // ============================================================================
 
+const PDF_THEME = {
+  headerBg: [22, 26, 33] as const,
+  brandAccent: [10, 120, 164] as const,
+  textMain: [30, 30, 30] as const,
+  textSub: [100, 100, 100] as const,
+  line: [205, 212, 218] as const,
+  surface: [246, 248, 251] as const,
+};
+
+const drawSectionHeader = (doc: jsPDF, title: string, y: number) => {
+  doc.setFontSize(11);
+  doc.setTextColor(...PDF_THEME.textMain);
+  doc.text(title, 14, y);
+  doc.setDrawColor(...PDF_THEME.line);
+  doc.setLineWidth(0.35);
+  doc.line(14, y + 3, 196, y + 3);
+  return y + 8;
+};
+
+const drawSignatureBlock = (
+  doc: jsPDF,
+  y: number,
+  title: string,
+  leftLabel: string,
+  rightLabel: string
+) => {
+  doc.setFontSize(10);
+  doc.setTextColor(...PDF_THEME.textMain);
+  doc.text(title, 14, y);
+  const lineY = y + 18;
+  doc.setDrawColor(...PDF_THEME.line);
+  doc.setLineWidth(0.25);
+  doc.line(14, lineY, 90, lineY);
+  doc.text(leftLabel, 14, lineY + 5);
+  doc.line(110, lineY, 190, lineY);
+  doc.text(rightLabel, 110, lineY + 5);
+};
+
 const setupDocument = (doc: jsPDF, titleEn: string, titleZh: string) => {
-  // Pure Black Header
-  doc.setFillColor(30, 30, 30);
+  doc.setFillColor(...PDF_THEME.headerBg);
   doc.rect(0, 0, 210, 35, 'F');
+  doc.setFillColor(...PDF_THEME.brandAccent);
+  doc.rect(0, 35, 210, 2, 'F');
 
   doc.setFont("NotoSansTC"); // Ensure font is set
 
@@ -331,7 +380,7 @@ const setupDocument = (doc: jsPDF, titleEn: string, titleZh: string) => {
   doc.text("海島七號工程管理系統 | ISLAND NO. 7 ENGINEERING SYSTEM", 14, 28);
 
   // Reset for Body
-  doc.setTextColor(30, 30, 30);
+  doc.setTextColor(...PDF_THEME.textMain);
   doc.setFillColor(255, 255, 255);
 };
 
@@ -342,12 +391,12 @@ const drawFooter = (doc: jsPDF) => {
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFont("NotoSansTC");
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.5);
+    doc.setDrawColor(...PDF_THEME.line);
+    doc.setLineWidth(0.4);
     doc.line(14, pageHeight - 15, 196, pageHeight - 15);
 
     doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
+    doc.setTextColor(...PDF_THEME.textSub);
     doc.text(`${COMPANY_NAME}`, 14, pageHeight - 10);
     doc.text(`Page ${i} of ${pageCount}`, 196, pageHeight - 10, { align: 'right' });
   }
@@ -380,14 +429,15 @@ export const generateEvaluationPDF = async (data: CaseData, mode: 'save' | 'prev
   // Client Info Grid
   doc.setFontSize(10);
   doc.text("客戶資料 / CLIENT INFO", 14, 45);
-  doc.setLineWidth(0.1);
+  doc.setLineWidth(0.35);
+  doc.setDrawColor(...PDF_THEME.line);
   doc.line(14, 47, 196, 47);
 
   const displayId = getDisplayCaseId(data.caseId, data.customerName);
   doc.text(`案件編號 / CASE ID: ${displayId}`, 14, 55);
   doc.text(`客戶姓名 / CLIENT: ${data.customerName}`, 14, 61);
   doc.text(`建立日期 / DATE: ${formatDate(data.createdDate)}`, 110, 55);
-  doc.text(`工程地址 / ADDRESS: ${data.address}`, 110, 61);
+  doc.text(`工程地址 / ADDRESS: ${data.address || '-'}`, 110, 61);
 
   let currentY = 70;
 
@@ -497,20 +547,103 @@ export const generateEvaluationPDF = async (data: CaseData, mode: 'save' | 'prev
     // Workflow section for process transparency
     const workflowSteps = getZoneWorkflowSteps(zone, dbMethods);
     if (workflowSteps.length) {
-      currentY = ensurePageSpace(doc, currentY, 14 + workflowSteps.length * 8);
-      doc.setFillColor(245, 247, 250);
+      const tagPaddingX = 2.5;
+      const tagHeight = 12.5;
+      const tagGapX = 3;
+      const tagGapY = 2.5;
+      const tagStartX = 18;
+      const tagMaxX = 192;
+      const tagColumns = 3;
+      const availableWidth = tagMaxX - tagStartX;
+      const tagWidth = (availableWidth - (tagGapX * (tagColumns - 1))) / tagColumns;
+      const titleStartX = tagPaddingX + 8.5;
+
+      doc.setFontSize(8);
+      const tags = workflowSteps.map((step, stepIndex) => {
+        const titleRaw = step.name;
+        const title = truncateTextToWidth(doc, titleRaw, tagWidth - titleStartX - tagPaddingX);
+        doc.setFontSize(7);
+        const desc = truncateTextToWidth(doc, step.description || '-', tagWidth - titleStartX - tagPaddingX);
+        doc.setFontSize(8);
+        return { title, desc, order: String(stepIndex + 1).padStart(2, '0') };
+      });
+
+      const rowCount = Math.ceil(tags.length / tagColumns);
+      const tagsHeight = (rowCount * tagHeight) + ((rowCount - 1) * tagGapY);
+      currentY = ensurePageSpace(doc, currentY, 14 + tagsHeight + 5);
+      doc.setFillColor(...PDF_THEME.surface);
       doc.rect(14, currentY, 182, 8, 'F');
-      doc.setTextColor(20, 20, 20);
+      doc.setTextColor(...PDF_THEME.textMain);
       doc.setFontSize(9);
       doc.text("施作流程 / WORKFLOW", 16, currentY + 5.5);
-      currentY += 10;
+      currentY += 9.5;
 
-      workflowSteps.forEach((step, stepIndex) => {
-        currentY = ensurePageSpace(doc, currentY, 10);
-        const line = `${stepIndex + 1}. ${step.name} | ${step.description} (Prep ${step.prepMinutes}m / Exec ${step.execMinutes}m)`;
-        currentY = writeWrappedText(doc, line, 18, currentY + 4.5, 174, 5);
+      let drawY = currentY;
+      doc.setFont("NotoSansTC", "normal");
+      tags.forEach((tag, index) => {
+        const col = index % tagColumns;
+        const row = Math.floor(index / tagColumns);
+        const drawX = tagStartX + (col * (tagWidth + tagGapX));
+        drawY = currentY + (row * (tagHeight + tagGapY));
+
+        doc.setFillColor(...PDF_THEME.surface);
+        doc.setDrawColor(...PDF_THEME.line);
+        doc.setLineWidth(0.25);
+        doc.roundedRect(drawX, drawY, tagWidth, tagHeight, 1.2, 1.2, 'FD');
+
+        doc.setFont("NotoSansTC", "bold");
+        doc.setTextColor(...PDF_THEME.textSub);
+        doc.setFontSize(8.5);
+        doc.text(tag.order, drawX + tagPaddingX, drawY + 4.3);
+
+        doc.setTextColor(...PDF_THEME.textMain);
+        doc.setFont("NotoSansTC", "bold");
+        doc.setFontSize(8);
+        doc.text(tag.title, drawX + titleStartX, drawY + 4.4);
+
+        doc.setDrawColor(...PDF_THEME.line);
+        doc.setLineWidth(0.22);
+        doc.line(drawX + titleStartX, drawY + 6.1, drawX + titleStartX + 7, drawY + 6.1);
+
+        doc.setFont("NotoSansTC", "normal");
+        doc.setTextColor(...PDF_THEME.textSub);
+        doc.setFontSize(7.2);
+        doc.text(tag.desc, drawX + titleStartX, drawY + 8.2);
+
+        const isFirstInWrappedRow = row > 0 && col === 0;
+        if (isFirstInWrappedRow) {
+          const resumeX = drawX - (tagGapX / 2);
+          const resumeY = drawY + (tagHeight / 2);
+          doc.setDrawColor(...PDF_THEME.line);
+          doc.setLineWidth(0.26);
+          doc.line(resumeX - 0.55, resumeY - 0.7, resumeX + 0.55, resumeY);
+          doc.line(resumeX - 0.55, resumeY + 0.7, resumeX + 0.55, resumeY);
+        }
+
+        const hasNextInRow = col < (tagColumns - 1) && (index + 1) < tags.length;
+        if (hasNextInRow) {
+          const arrowX = drawX + tagWidth + (tagGapX / 2);
+          const arrowY = drawY + (tagHeight / 2);
+          doc.setDrawColor(...PDF_THEME.line);
+          doc.setLineWidth(0.3);
+          doc.line(arrowX - 0.55, arrowY - 0.7, arrowX + 0.55, arrowY);
+          doc.line(arrowX - 0.55, arrowY + 0.7, arrowX + 0.55, arrowY);
+        }
+
+        const isEndOfRowWithNext = col === (tagColumns - 1) && (index + 1) < tags.length;
+        if (isEndOfRowWithNext) {
+          const dropX = drawX + tagWidth + (tagGapX / 2);
+          const dropStartY = drawY + (tagHeight / 2) + 1;
+          const dropEndY = drawY + tagHeight + (tagGapY / 2) + 1.2;
+          doc.setDrawColor(...PDF_THEME.line);
+          doc.setLineWidth(0.28);
+          doc.line(dropX, dropStartY, dropX, dropEndY);
+          doc.line(dropX - 0.65, dropEndY - 0.55, dropX, dropEndY + 0.25);
+          doc.line(dropX + 0.65, dropEndY - 0.55, dropX, dropEndY + 0.25);
+        }
       });
-      currentY += 4;
+      doc.setFont("NotoSansTC", "normal");
+      currentY = drawY + tagHeight + 4;
     }
   }
 
@@ -519,12 +652,15 @@ export const generateEvaluationPDF = async (data: CaseData, mode: 'save' | 'prev
     currentY = 20;
   }
 
-  doc.setDrawColor(0, 0, 0);
+  doc.setDrawColor(...PDF_THEME.line);
   doc.setLineWidth(0.5);
   doc.line(14, currentY, 196, currentY);
 
+  doc.setFillColor(...PDF_THEME.surface);
+  doc.rect(14, currentY + 2, 182, 11, 'F');
   doc.setFontSize(14);
-  doc.text(`總金額 / TOTAL: ${formatCurrency(data.finalPrice)}`, 196, currentY + 10, { align: 'right' });
+  doc.setTextColor(...PDF_THEME.textMain);
+  doc.text(`總金額 / TOTAL: ${formatCurrency(data.finalPrice)}`, 194, currentY + 10, { align: 'right' });
 
   drawFooter(doc);
   outputPDF(doc, `EVALUATION_${displayId}.pdf`, mode);
@@ -545,6 +681,7 @@ export const generateQuotationPDF = async (data: CaseData, mode: 'save' | 'previ
   const baseSubtotal = (data.zones || []).reduce((sum, zone) => sum + getZoneSubtotal(zone), 0);
   const adjustment = data.manualPriceAdjustment || 0;
   const total = data.finalPrice || (baseSubtotal + adjustment);
+  const hasDiscountAdjustment = adjustment < 0 && total < baseSubtotal;
   const projectDays = getProjectDurationDays(data);
 
   doc.setFontSize(10);
@@ -578,7 +715,7 @@ export const generateQuotationPDF = async (data: CaseData, mode: 'save' | 'previ
     body: detailRows.length ? detailRows : [['-', '-', '-', '-', '-']],
     theme: 'grid',
     styles: { fontSize: 8, cellPadding: 2.5, font: "NotoSansTC" },
-    headStyles: { fillColor: [30, 30, 30], textColor: 255, font: "NotoSansTC", fontStyle: "bold" },
+    headStyles: { fillColor: [...PDF_THEME.headerBg], textColor: 255, font: "NotoSansTC", fontStyle: "bold" },
     columnStyles: {
       0: { cellWidth: 50 },
       1: { cellWidth: 45 },
@@ -589,26 +726,56 @@ export const generateQuotationPDF = async (data: CaseData, mode: 'save' | 'previ
   });
 
   let y = ((doc as any).lastAutoTable?.finalY || 120) + 8;
-  y = ensurePageSpace(doc, y, 30);
+  y = ensurePageSpace(doc, y, hasDiscountAdjustment ? 42 : 30);
 
-  doc.setFillColor(246, 248, 251);
-  doc.rect(14, y, 182, 18, 'F');
-  doc.setFontSize(12);
-  doc.text(`專案總費用 TOTAL: ${formatCurrency(total)}`, 18, y + 12);
-  y += 24;
+  doc.setFillColor(...PDF_THEME.surface);
+  doc.rect(14, y, 182, hasDiscountAdjustment ? 28 : 18, 'F');
+
+  if (hasDiscountAdjustment) {
+    doc.setFontSize(10);
+    doc.setTextColor(120, 120, 120);
+    const originalTotalText = `專案總費用 TOTAL: ${formatCurrency(baseSubtotal)}`;
+    const originalTotalY = y + 9;
+    doc.text(originalTotalText, 18, originalTotalY);
+
+    const originalTotalWidth = doc.getTextWidth(originalTotalText);
+    doc.setDrawColor(120, 120, 120);
+    doc.setLineWidth(0.35);
+    const strikeY = originalTotalY - (doc.getFontSize() * 0.2);
+    doc.line(18, strikeY, 18 + originalTotalWidth, strikeY);
+
+    doc.setTextColor(30, 30, 30);
+    doc.setFontSize(12);
+    doc.text(`折扣後費用 DISCOUNTED TOTAL: ${formatCurrency(total)}`, 18, y + 22);
+    y += 34;
+  } else {
+    doc.setTextColor(30, 30, 30);
+    doc.setFontSize(12);
+    doc.text(`專案總費用 TOTAL: ${formatCurrency(total)}`, 18, y + 12);
+    y += 24;
+  }
+
+  doc.setTextColor(30, 30, 30);
 
   // ========== SECTION 1: 施工流程區 / CONSTRUCTION WORKFLOW ==========
   y = ensurePageSpace(doc, y, 18);
-  doc.setFontSize(11);
-  doc.text("施工流程 / CONSTRUCTION WORKFLOW", 14, y);
-  y += 6;
-  doc.setLineWidth(0.2);
-  doc.line(14, y, 196, y);
-  y += 4;
+  y = drawSectionHeader(doc, "施工流程 / CONSTRUCTION WORKFLOW", y);
 
   (data.zones || []).forEach((zone, index) => {
     const steps = getZoneWorkflowSteps(zone, dbMethods);
-    y = ensurePageSpace(doc, y, 14 + steps.length * 7);
+    const tagPaddingX = 2.5;
+    const tagHeight = 12.5;
+    const tagGapX = 3;
+    const tagGapY = 2.5;
+    const tagStartX = 20;
+    const tagMaxX = 192;
+    const tagColumns = 3;
+    const availableWidth = tagMaxX - tagStartX;
+    const tagWidth = (availableWidth - (tagGapX * (tagColumns - 1))) / tagColumns;
+    const titleStartX = tagPaddingX + 8.5;
+    const rowCount = Math.max(1, Math.ceil(steps.length / tagColumns));
+    const tagsHeight = (rowCount * tagHeight) + ((rowCount - 1) * tagGapY);
+    y = ensurePageSpace(doc, y, 10 + tagsHeight + 10);
 
     // Zone header
     doc.setFontSize(10);
@@ -622,21 +789,88 @@ export const generateQuotationPDF = async (data: CaseData, mode: 'save' | 'previ
       5
     );
 
-    // Steps as numbered list
+    // Steps as compact workflow cards
     if (steps.length) {
-      doc.setFontSize(9);
-      doc.setTextColor(80, 80, 80);
-      steps.forEach((step, i) => {
-        y = ensurePageSpace(doc, y, 8);
-        y = writeWrappedText(
-          doc,
-          `  ${i + 1}. ${step.name} - ${step.description}`,
-          20,
-          y + 3,
-          172,
-          5
-        );
+      const tags = steps.map((step, stepIndex) => {
+        doc.setFontSize(8);
+        const title = truncateTextToWidth(doc, step.name, tagWidth - titleStartX - tagPaddingX);
+        doc.setFontSize(7);
+        const desc = truncateTextToWidth(doc, step.description || '-', tagWidth - titleStartX - tagPaddingX);
+        return {
+          order: String(stepIndex + 1).padStart(2, '0'),
+          title,
+          desc,
+        };
       });
+
+      let drawY = y + 1.5;
+      doc.setFont("NotoSansTC", "normal");
+      tags.forEach((tag, i) => {
+        const col = i % tagColumns;
+        const row = Math.floor(i / tagColumns);
+        const drawX = tagStartX + (col * (tagWidth + tagGapX));
+        drawY = y + 1.5 + (row * (tagHeight + tagGapY));
+
+        doc.setFillColor(...PDF_THEME.surface);
+        doc.setDrawColor(...PDF_THEME.line);
+        doc.setLineWidth(0.25);
+        doc.roundedRect(drawX, drawY, tagWidth, tagHeight, 1.2, 1.2, 'FD');
+
+        doc.setFont("NotoSansTC", "bold");
+        doc.setTextColor(...PDF_THEME.textSub);
+        doc.setFontSize(8.5);
+        doc.text(tag.order, drawX + tagPaddingX, drawY + 4.3);
+
+        doc.setTextColor(...PDF_THEME.textMain);
+        doc.setFont("NotoSansTC", "bold");
+        doc.setFontSize(8);
+        doc.text(tag.title, drawX + titleStartX, drawY + 4.4);
+
+        doc.setDrawColor(...PDF_THEME.line);
+        doc.setLineWidth(0.22);
+        doc.line(drawX + titleStartX, drawY + 6.1, drawX + titleStartX + 7, drawY + 6.1);
+
+        doc.setFont("NotoSansTC", "normal");
+        doc.setTextColor(...PDF_THEME.textSub);
+        doc.setFontSize(7.2);
+        doc.text(tag.desc, drawX + titleStartX, drawY + 8.2);
+
+        const isFirstInWrappedRow = row > 0 && col === 0;
+        if (isFirstInWrappedRow) {
+          const resumeX = drawX - (tagGapX / 2);
+          const resumeY = drawY + (tagHeight / 2);
+          doc.setDrawColor(...PDF_THEME.line);
+          doc.setLineWidth(0.26);
+          doc.line(resumeX - 0.55, resumeY - 0.7, resumeX + 0.55, resumeY);
+          doc.line(resumeX - 0.55, resumeY + 0.7, resumeX + 0.55, resumeY);
+        }
+
+        const hasNextInRow = col < (tagColumns - 1) && (i + 1) < tags.length;
+        if (hasNextInRow) {
+          const arrowX = drawX + tagWidth + (tagGapX / 2);
+          const arrowY = drawY + (tagHeight / 2);
+          doc.setDrawColor(...PDF_THEME.line);
+          doc.setLineWidth(0.3);
+          doc.line(arrowX - 0.55, arrowY - 0.7, arrowX + 0.55, arrowY);
+          doc.line(arrowX - 0.55, arrowY + 0.7, arrowX + 0.55, arrowY);
+        }
+
+        const isEndOfRowWithNext = col === (tagColumns - 1) && (i + 1) < tags.length;
+        if (isEndOfRowWithNext) {
+          const dropX = drawX + tagWidth + (tagGapX / 2);
+          const dropStartY = drawY + (tagHeight / 2) + 1;
+          const dropEndY = drawY + tagHeight + (tagGapY / 2) + 1.2;
+          doc.setDrawColor(...PDF_THEME.line);
+          doc.setLineWidth(0.28);
+          doc.line(dropX, dropStartY, dropX, dropEndY);
+          doc.line(dropX - 0.65, dropEndY - 0.55, dropX, dropEndY + 0.25);
+          doc.line(dropX + 0.65, dropEndY - 0.55, dropX, dropEndY + 0.25);
+        }
+      });
+
+      doc.setFont("NotoSansTC", "normal");
+      doc.setTextColor(...PDF_THEME.textMain);
+      y = drawY + tagHeight + 2.5;
     } else {
       doc.setFontSize(9);
       doc.setTextColor(150, 150, 150);
@@ -649,11 +883,7 @@ export const generateQuotationPDF = async (data: CaseData, mode: 'save' | 'previ
 
   // ========== SECTION 2: 品牌材料與特色區 / BRAND MATERIALS & FEATURES ==========
   y = ensurePageSpace(doc, y, 22);
-  doc.setFontSize(11);
-  doc.text("品牌材料與特色 / BRAND MATERIALS & FEATURES", 14, y);
-  y += 6;
-  doc.line(14, y, 196, y);
-  y += 4;
+  y = drawSectionHeader(doc, "品牌材料與特色 / BRAND MATERIALS & FEATURES", y);
 
   // Load recipes + materials for brand info
   let allRecipes: any[] = [];
@@ -719,7 +949,7 @@ export const generateQuotationPDF = async (data: CaseData, mode: 'save' | 'previ
         body: matRows,
         theme: 'grid',
         styles: { fontSize: 8, cellPadding: 2, font: "NotoSansTC" },
-        headStyles: { fillColor: [60, 60, 60], textColor: 255, font: "NotoSansTC", fontStyle: "bold" },
+        headStyles: { fillColor: [...PDF_THEME.brandAccent], textColor: 255, font: "NotoSansTC", fontStyle: "bold" },
         columnStyles: {
           0: { cellWidth: 40 },
         },
@@ -739,11 +969,7 @@ export const generateQuotationPDF = async (data: CaseData, mode: 'save' | 'previ
 
   // ========== SECTION 3: 保固說明區 / WARRANTY TERMS ==========
   y = ensurePageSpace(doc, y, 30);
-  doc.setFontSize(11);
-  doc.text("保固說明 / WARRANTY TERMS", 14, y);
-  y += 6;
-  doc.line(14, y, 196, y);
-  y += 4;
+  y = drawSectionHeader(doc, "保固說明 / WARRANTY TERMS", y);
 
   // Dynamic warranty per zone/method
   const warrantyLines: string[] = [];
@@ -781,14 +1007,13 @@ export const generateQuotationPDF = async (data: CaseData, mode: 'save' | 'previ
 
   // Signature section
   y = ensurePageSpace(doc, y + 8, 26);
-  doc.setFontSize(10);
-  doc.text("雙方簽名確認 / SIGNATURES", 14, y);
-  y += 18;
-  doc.setLineWidth(0.2);
-  doc.line(14, y, 90, y);
-  doc.text("業主簽名 / Client", 14, y + 5);
-  doc.line(110, y, 190, y);
-  doc.text("承攬方簽名 / Contractor", 110, y + 5);
+  drawSignatureBlock(
+    doc,
+    y,
+    "雙方簽名確認 / SIGNATURES",
+    "業主簽名 / Client",
+    "承攬方簽名 / Contractor"
+  );
 
   drawFooter(doc);
   outputPDF(doc, `QUOTATION_${displayId}.pdf`, mode);
@@ -827,11 +1052,7 @@ export const generateContractPDF = async (data: CaseData, mode: 'save' | 'previe
   doc.text(`合約編號 / CONTRACT NO: ${displayId}`, 110, y + 18);
 
   y = 72;
-  doc.setFontSize(11);
-  doc.text("一、工程範圍（與評估表一致） / SCOPE", 14, y);
-  y += 4;
-  doc.line(14, y, 196, y);
-  y += 2;
+  y = drawSectionHeader(doc, "一、工程範圍（與評估表一致） / SCOPE", y);
 
   autoTable(doc, {
     startY: y + 2,
@@ -846,7 +1067,7 @@ export const generateContractPDF = async (data: CaseData, mode: 'save' | 'previe
     }),
     theme: 'grid',
     styles: { fontSize: 8, cellPadding: 2.5, font: "NotoSansTC" },
-    headStyles: { fillColor: [30, 30, 30], textColor: 255, font: "NotoSansTC", fontStyle: "bold" },
+    headStyles: { fillColor: [...PDF_THEME.headerBg], textColor: 255, font: "NotoSansTC", fontStyle: "bold" },
     columnStyles: {
       0: { cellWidth: 40 },
       1: { cellWidth: 35 },
@@ -855,23 +1076,17 @@ export const generateContractPDF = async (data: CaseData, mode: 'save' | 'previe
 
   y = ((doc as any).lastAutoTable?.finalY || y + 40) + 8;
   y = ensurePageSpace(doc, y, 30);
-  doc.setFontSize(11);
-  doc.text("二、工程總價與工期 / PRICE & SCHEDULE", 14, y);
-  y += 4;
-  doc.line(14, y, 196, y);
-  y += 5;
+  y = drawSectionHeader(doc, "二、工程總價與工期 / PRICE & SCHEDULE", y);
+  doc.setFillColor(...PDF_THEME.surface);
+  doc.rect(14, y - 1, 182, 18, 'F');
   doc.setFontSize(10);
-  y = writeWrappedText(doc, `1) 合約總價：${formatCurrency(total)}（含稅）`, 16, y, 178, 5);
+  y = writeWrappedText(doc, `1) 合約總價：${formatCurrency(total)}（含稅）`, 16, y + 4, 178, 5);
   y = writeWrappedText(doc, `2) 預定工期：約 ${projectDays} 天，預定開工 ${startDate}，預定完工 ${expectedEndDate}。`, 16, y, 178, 5);
   y = writeWrappedText(doc, `3) 付款：訂金 70%（${formatCurrency(Math.round(total * 0.7))}），尾款 30%（${formatCurrency(Math.round(total * 0.3))}）。`, 16, y, 178, 5);
 
   y += 4;
   y = ensurePageSpace(doc, y, 40);
-  doc.setFontSize(11);
-  doc.text("三、驗收標準與保固 / ACCEPTANCE & WARRANTY", 14, y);
-  y += 4;
-  doc.line(14, y, 196, y);
-  y += 5;
+  y = drawSectionHeader(doc, "三、驗收標準與保固 / ACCEPTANCE & WARRANTY", y);
 
   // Dynamic warranty per zone
   const contractWarrantyLines: string[] = [
@@ -904,11 +1119,7 @@ export const generateContractPDF = async (data: CaseData, mode: 'save' | 'previe
 
   y += 4;
   y = ensurePageSpace(doc, y, 45);
-  doc.setFontSize(11);
-  doc.text("四、權利義務、毀約與爭議 / RIGHTS, BREACH & JURISDICTION", 14, y);
-  y += 4;
-  doc.line(14, y, 196, y);
-  y += 5;
+  y = drawSectionHeader(doc, "四、權利義務、毀約與爭議 / RIGHTS, BREACH & JURISDICTION", y);
   const legalTerms = [
     "1) 甲方應提供施工必要之作業空間與用電用水，並依約支付工程款。",
     "2) 乙方應依估價與工法流程施工，確保施工安全與品質。",
@@ -923,14 +1134,13 @@ export const generateContractPDF = async (data: CaseData, mode: 'save' | 'previe
   });
 
   y = ensurePageSpace(doc, y + 10, 30);
-  doc.setFontSize(10);
-  doc.text("立合約書人簽署 / SIGNATURES", 14, y);
-  y += 18;
-  doc.setLineWidth(0.2);
-  doc.line(14, y, 90, y);
-  doc.text("甲方簽章 (Client)", 14, y + 5);
-  doc.line(110, y, 190, y);
-  doc.text("乙方簽章 (Contractor)", 110, y + 5);
+  drawSignatureBlock(
+    doc,
+    y,
+    "立合約書人簽署 / SIGNATURES",
+    "甲方簽章 (Client)",
+    "乙方簽章 (Contractor)"
+  );
 
   drawFooter(doc);
   outputPDF(doc, `CONTRACT_${displayId}.pdf`, mode);
@@ -950,7 +1160,7 @@ export const generateInvoicePDF = async (data: CaseData, type: 'DEPOSIT' | 'FINA
   const deposit = Math.round(total * 0.7);
   const final = Math.round(total * 0.3);
 
-  doc.setFillColor(245, 245, 245);
+  doc.setFillColor(...PDF_THEME.surface);
   doc.rect(14, 45, 182, 25, 'F');
 
   doc.setFontSize(10);
@@ -980,21 +1190,22 @@ export const generateInvoicePDF = async (data: CaseData, type: 'DEPOSIT' | 'FINA
     body: tableBody,
     theme: 'grid',
     styles: { fontSize: 11, cellPadding: 8, font: "NotoSansTC" },
-    headStyles: { fillColor: [50, 50, 50], textColor: 255, font: "NotoSansTC", fontStyle: "bold" },
+    headStyles: { fillColor: [...PDF_THEME.headerBg], textColor: 255, font: "NotoSansTC", fontStyle: "bold" },
     columnStyles: {
       1: { halign: 'right' }
     }
   });
 
-  const bankY = 160;
-  doc.text("匯款資訊 / PAYMENT DETAILS", 14, bankY);
-  doc.setLineWidth(0.5);
-  doc.line(14, bankY + 2, 60, bankY + 2);
+  let bankY = ((doc as any).lastAutoTable?.finalY || 120) + 14;
+  bankY = ensurePageSpace(doc, bankY, 34, 24);
+  bankY = drawSectionHeader(doc, "匯款資訊 / PAYMENT DETAILS", bankY);
+  doc.setFillColor(...PDF_THEME.surface);
+  doc.rect(14, bankY - 1, 182, 24, 'F');
 
   doc.setFontSize(10);
-  doc.text("銀行代碼: 822 (中國信託)", 14, bankY + 12);
-  doc.text("銀行帳號: 1234-5678-9012-3456", 14, bankY + 18);
-  doc.text(`戶名: ${COMPANY_NAME}`, 14, bankY + 24);
+  doc.text("銀行代碼: 822 (中國信託)", 16, bankY + 6);
+  doc.text("銀行帳號: 1234-5678-9012-3456", 16, bankY + 12);
+  doc.text(`戶名: ${COMPANY_NAME}`, 16, bankY + 18);
 
   drawFooter(doc);
   outputPDF(doc, `INVOICE_${type}_${displayId}.pdf`, mode);
