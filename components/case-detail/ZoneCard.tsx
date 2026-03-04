@@ -1,12 +1,48 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp, Trash2, X, Plus } from 'lucide-react';
-import { Zone, MethodItem, ServiceCategory } from '../../types';
+import { Zone, MethodItem, ServiceCategory, WarrantyType } from '../../types';
 import { Button, Card, Input, Select, ImageUploader } from '../InputComponents';
 
 export const ZoneCard: React.FC<{ zone: Zone; methods: MethodItem[]; onUpdate: (z: Zone) => void; onDelete: () => void }> = ({ zone, methods, onUpdate, onDelete }) => {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const filteredMethods = useMemo(() => methods.filter(m => m.category === zone.category).sort((a, b) => a.defaultUnitPrice - b.defaultUnitPrice), [methods, zone.category]);
+    const selectedMethod = useMemo(() => methods.find((m) => m.id === zone.methodId), [methods, zone.methodId]);
     const isPing = zone.unit === '坪';
+
+    const effectiveWarrantyType: WarrantyType = zone.warrantyType || selectedMethod?.warrantyType || 'leak_handled';
+    const handledMonths = selectedMethod?.warrantyHandledMonths ?? selectedMethod?.warrantyMonths ?? 12;
+    const unhandledMonths = selectedMethod?.warrantyUnhandledMonths ?? selectedMethod?.warrantyMonths ?? 12;
+    const unhandledVisits = selectedMethod?.warrantyUnhandledVisits ?? selectedMethod?.warrantyVisits ?? 1;
+
+    const handleMethodSelect = (method: MethodItem) => {
+        const nextZone: Zone = {
+            ...zone,
+            methodId: method.id,
+            methodName: method.name,
+            unit: method.defaultUnit,
+            unitPrice: method.defaultUnitPrice,
+        };
+
+        if (zone.warrantyType == null || !zone.methodId) {
+            nextZone.warrantyType = method.warrantyType || 'leak_handled';
+        }
+
+        onUpdate(nextZone);
+    };
+
+    const getWarrantySummary = (type: WarrantyType) => {
+        if (type === 'leak_ignored') return '不提供保固';
+        const months = type === 'leak_unhandled' ? unhandledMonths : handledMonths;
+        const years = Math.floor(months / 12);
+        const remainMonths = months % 12;
+        const duration = years > 0
+            ? `${years}年${remainMonths > 0 ? `${remainMonths}個月` : ''}`
+            : `${remainMonths}個月`;
+        if (type === 'leak_unhandled') {
+            return `${duration} / ${unhandledVisits} 次`;
+        }
+        return `${duration}`;
+    };
 
     const updateItem = (iIdx: number, field: string, value: any) => {
         const newItems = [...zone.items];
@@ -75,7 +111,7 @@ export const ZoneCard: React.FC<{ zone: Zone; methods: MethodItem[]; onUpdate: (
                     <label className="text-[8px] font-black text-zinc-400 uppercase tracking-widest">工法選擇 / METHOD</label>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                         {filteredMethods.map(m => (
-                            <button key={m.id} onClick={() => onUpdate({ ...zone, methodId: m.id, methodName: m.name, unit: m.defaultUnit, unitPrice: m.defaultUnitPrice })} className={`p-3 border rounded-sm text-left transition-all ${zone.methodId === m.id ? 'bg-zinc-950 text-white border-zinc-950' : 'bg-white border-zinc-100 hover:border-zinc-300'}`}>
+                            <button key={m.id} onClick={() => handleMethodSelect(m)} className={`p-3 border rounded-sm text-left transition-all ${zone.methodId === m.id ? 'bg-zinc-950 text-white border-zinc-950' : 'bg-white border-zinc-100 hover:border-zinc-300'}`}>
                                 <div className="flex justify-between items-start">
                                     <div className="text-[11px] font-black leading-tight">{m.name}</div>
                                     <div className="text-[9px] opacity-60">${m.defaultUnitPrice}/{m.defaultUnit}</div>
@@ -83,6 +119,31 @@ export const ZoneCard: React.FC<{ zone: Zone; methods: MethodItem[]; onUpdate: (
                                 <div className="text-[7px] font-black uppercase opacity-40 mt-1">{m.englishName}</div>
                             </button>
                         ))}
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-[8px] font-black text-zinc-400 uppercase tracking-widest">保固狀況 / WARRANTY STATUS</label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        {[
+                            { type: 'leak_handled' as WarrantyType, label: '有處理漏水源' },
+                            { type: 'leak_unhandled' as WarrantyType, label: '無法處理漏水源' },
+                            { type: 'leak_ignored' as WarrantyType, label: '不處理漏水源' },
+                        ].map((option) => {
+                            const active = effectiveWarrantyType === option.type;
+                            return (
+                                <button
+                                    key={option.type}
+                                    onClick={() => onUpdate({ ...zone, warrantyType: option.type })}
+                                    className={`p-2.5 border rounded-sm text-left transition-all ${active ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white border-zinc-100 hover:border-zinc-300 text-zinc-700'}`}
+                                >
+                                    <div className="text-[10px] font-black tracking-tight">{option.label}</div>
+                                    <div className={`text-[9px] mt-1 ${active ? 'text-zinc-200' : 'text-zinc-400'}`}>
+                                        {getWarrantySummary(option.type)}
+                                    </div>
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 

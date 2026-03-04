@@ -292,13 +292,14 @@ const getWarrantyClauses = (data: CaseData): string[] => {
 const getMethodWarrantyText = (
   warrantyType?: WarrantyType,
   warrantyMonths?: number,
-  warrantyVisits?: number
+  warrantyVisits?: number,
+  warrantyIgnoredText?: string
 ): string => {
   const type = warrantyType || 'leak_handled';
   const months = warrantyMonths ?? 12;
 
   if (type === 'leak_ignored') {
-    return '不處理漏水源：不提供保固';
+    return `不處理漏水源：${warrantyIgnoredText || '不提供保固'}`;
   }
 
   const years = Math.floor(months / 12);
@@ -318,6 +319,30 @@ const getMethodWarrantyText = (
   }
 
   return `有處理漏水源：${durationText}保固`;
+};
+
+const resolveMethodWarrantyByType = (method: MethodItem, type: WarrantyType) => {
+  if (type === 'leak_unhandled') {
+    return {
+      months: method.warrantyUnhandledMonths ?? method.warrantyMonths,
+      visits: method.warrantyUnhandledVisits ?? method.warrantyVisits,
+      ignoredText: method.warrantyIgnoredText,
+    };
+  }
+
+  if (type === 'leak_ignored') {
+    return {
+      months: undefined,
+      visits: undefined,
+      ignoredText: method.warrantyIgnoredText,
+    };
+  }
+
+  return {
+    months: method.warrantyHandledMonths ?? method.warrantyMonths,
+    visits: method.warrantyVisits,
+    ignoredText: method.warrantyIgnoredText,
+  };
 };
 
 // ============================================================================
@@ -977,10 +1002,13 @@ export const generateQuotationPDF = async (data: CaseData, mode: 'save' | 'previ
     const method = getMethodById(zone.methodId, dbMethods);
     const zoneName = zone.zoneName || `區域 ${index + 1}`;
     if (method) {
+      const effectiveWarrantyType = zone.warrantyType || method.warrantyType;
+      const warrantyConfig = resolveMethodWarrantyByType(method, effectiveWarrantyType || 'leak_handled');
       const warrantyText = getMethodWarrantyText(
-        method.warrantyType,
-        method.warrantyMonths,
-        method.warrantyVisits
+        effectiveWarrantyType,
+        warrantyConfig.months,
+        warrantyConfig.visits,
+        warrantyConfig.ignoredText
       );
       warrantyLines.push(`- ${zoneName} (${zone.methodName}): ${warrantyText}`);
     } else {
@@ -1098,10 +1126,13 @@ export const generateContractPDF = async (data: CaseData, mode: 'save' | 'previe
     const method = getMethodById(zone.methodId, dbMethods);
     const zoneName = zone.zoneName || `區域 ${index + 1}`;
     if (method) {
+      const effectiveWarrantyType = zone.warrantyType || method.warrantyType;
+      const warrantyConfig = resolveMethodWarrantyByType(method, effectiveWarrantyType || 'leak_handled');
       const warrantyText = getMethodWarrantyText(
-        method.warrantyType,
-        method.warrantyMonths,
-        method.warrantyVisits
+        effectiveWarrantyType,
+        warrantyConfig.months,
+        warrantyConfig.visits,
+        warrantyConfig.ignoredText
       );
       contractWarrantyLines.push(`${contractWarrantyLines.length + 1}) ${zoneName} (${zone.methodName}): ${warrantyText}`);
     } else {

@@ -444,6 +444,10 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
       estimatedDays: 1,
       warrantyType: 'leak_handled',
       warrantyMonths: 12,
+      warrantyHandledMonths: 12,
+      warrantyUnhandledMonths: 12,
+      warrantyUnhandledVisits: 1,
+      warrantyIgnoredText: '不提供保固',
       steps: [{ name: '第一工序', description: '', prepMinutes: 0, execMinutes: 60 }]
     };
     setEditingMethod(newMethod);
@@ -452,7 +456,22 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
   const handleSave = async () => {
     if (editingMethod) {
       const totalMins = editingMethod.steps.reduce((sum, s) => sum + s.prepMinutes + s.execMinutes, 0);
-      const toSave = { ...editingMethod, estimatedDays: Math.ceil(totalMins / 480) };
+      const handledMonths = editingMethod.warrantyHandledMonths ?? editingMethod.warrantyMonths ?? 12;
+      const unhandledMonths = editingMethod.warrantyUnhandledMonths ?? editingMethod.warrantyMonths ?? 12;
+      const unhandledVisits = editingMethod.warrantyUnhandledVisits ?? editingMethod.warrantyVisits ?? 1;
+      const selectedType = editingMethod.warrantyType || 'leak_handled';
+      const fallbackMonths = selectedType === 'leak_unhandled' ? unhandledMonths : handledMonths;
+      const fallbackVisits = selectedType === 'leak_unhandled' ? unhandledVisits : 1;
+      const toSave = {
+        ...editingMethod,
+        estimatedDays: Math.ceil(totalMins / 480),
+        warrantyHandledMonths: handledMonths,
+        warrantyUnhandledMonths: unhandledMonths,
+        warrantyUnhandledVisits: unhandledVisits,
+        warrantyIgnoredText: editingMethod.warrantyIgnoredText || '不提供保固',
+        warrantyMonths: fallbackMonths,
+        warrantyVisits: fallbackVisits,
+      };
       await saveMethod(toSave);
       setEditingMethod(null);
       loadMethods();
@@ -477,6 +496,14 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
     const newSteps = [...editingMethod.steps];
     newSteps[idx] = { ...newSteps[idx], [field]: value };
     setEditingMethod({ ...editingMethod, steps: newSteps });
+  };
+
+  const formatDuration = (months: number) => {
+    const years = Math.floor(months / 12);
+    const remainMonths = months % 12;
+    if (years > 0 && remainMonths > 0) return `${years} 年 ${remainMonths} 個月`;
+    if (years > 0) return `${years} 年`;
+    return `${remainMonths} 個月`;
   };
 
   return (
@@ -532,9 +559,9 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
           {/* 保固設定 / WARRANTY CONFIG */}
           <Card title="保固設定 / WARRANTY CONFIG">
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div>
-                  <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1 block">漏水源處理狀態 / LEAK SOURCE</label>
+                  <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1 block">評估預設狀況 / DEFAULT TYPE</label>
                   <select
                     className="w-full bg-white border border-zinc-200 rounded-sm p-2 text-sm font-bold outline-none focus:border-black transition-colors"
                     value={editingMethod.warrantyType || 'leak_handled'}
@@ -545,39 +572,58 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
                     <option value="leak_ignored">不處理漏水源</option>
                   </select>
                 </div>
+              </div>
 
-                {(editingMethod.warrantyType || 'leak_handled') !== 'leak_ignored' && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white border border-zinc-200 rounded-sm p-4 space-y-3">
+                  <div className="text-[10px] font-black text-zinc-700 tracking-tight">有處理漏水源 / HANDLED</div>
                   <Input
-                    label="保固月數 / WARRANTY MONTHS"
+                    label="保固月數 / MONTHS"
                     type="number"
-                    value={editingMethod.warrantyMonths ?? 12}
-                    onChange={e => setEditingMethod({ ...editingMethod, warrantyMonths: parseInt(e.target.value) || 0 })}
+                    value={editingMethod.warrantyHandledMonths ?? editingMethod.warrantyMonths ?? 12}
+                    onChange={e => setEditingMethod({ ...editingMethod, warrantyHandledMonths: parseInt(e.target.value) || 0 })}
                   />
-                )}
+                </div>
 
-                {(editingMethod.warrantyType) === 'leak_unhandled' && (
+                <div className="bg-white border border-zinc-200 rounded-sm p-4 space-y-3">
+                  <div className="text-[10px] font-black text-zinc-700 tracking-tight">無法處理漏水源 / UNHANDLED</div>
                   <Input
-                    label="保固次數 / WARRANTY VISITS"
+                    label="保固月數 / MONTHS"
                     type="number"
-                    value={editingMethod.warrantyVisits ?? 1}
-                    onChange={e => setEditingMethod({ ...editingMethod, warrantyVisits: parseInt(e.target.value) || 0 })}
+                    value={editingMethod.warrantyUnhandledMonths ?? editingMethod.warrantyMonths ?? 12}
+                    onChange={e => setEditingMethod({ ...editingMethod, warrantyUnhandledMonths: parseInt(e.target.value) || 0 })}
                   />
-                )}
+                  <Input
+                    label="保固次數 / VISITS"
+                    type="number"
+                    value={editingMethod.warrantyUnhandledVisits ?? editingMethod.warrantyVisits ?? 1}
+                    onChange={e => setEditingMethod({ ...editingMethod, warrantyUnhandledVisits: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+
+                <div className="bg-white border border-zinc-200 rounded-sm p-4 space-y-3">
+                  <div className="text-[10px] font-black text-zinc-700 tracking-tight">不處理漏水源 / IGNORED</div>
+                  <Input
+                    label="顯示文案 / DISPLAY TEXT"
+                    value={editingMethod.warrantyIgnoredText || '不提供保固'}
+                    onChange={e => setEditingMethod({ ...editingMethod, warrantyIgnoredText: e.target.value })}
+                  />
+                </div>
               </div>
 
               {/* 保固預覽 / WARRANTY PREVIEW */}
               <div className="bg-zinc-50 p-4 rounded-sm border border-zinc-200">
                 <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-2">保固條件預覽 / WARRANTY PREVIEW</div>
-                <div className="text-sm font-bold text-zinc-800">
-                  {(editingMethod.warrantyType || 'leak_handled') === 'leak_handled' && (
-                    <span>✅ 有處理漏水源：{Math.floor((editingMethod.warrantyMonths ?? 12) / 12)} 年{(editingMethod.warrantyMonths ?? 12) % 12 > 0 ? ` ${(editingMethod.warrantyMonths ?? 12) % 12} 個月` : ''}保固</span>
-                  )}
-                  {editingMethod.warrantyType === 'leak_unhandled' && (
-                    <span>⚠️ 無法處理漏水源：{Math.floor((editingMethod.warrantyMonths ?? 12) / 12)} 年{(editingMethod.warrantyMonths ?? 12) % 12 > 0 ? ` ${(editingMethod.warrantyMonths ?? 12) % 12} 個月` : ''} {editingMethod.warrantyVisits ?? 1} 次保固</span>
-                  )}
-                  {editingMethod.warrantyType === 'leak_ignored' && (
-                    <span>❌ 不處理漏水源：不提供保固</span>
-                  )}
+                <div className="space-y-1.5 text-sm font-bold text-zinc-800">
+                  <div className={`${(editingMethod.warrantyType || 'leak_handled') === 'leak_handled' ? 'text-zinc-900' : 'text-zinc-500'}`}>
+                    ✅ 有處理漏水源：{formatDuration(editingMethod.warrantyHandledMonths ?? editingMethod.warrantyMonths ?? 12)}保固
+                  </div>
+                  <div className={`${editingMethod.warrantyType === 'leak_unhandled' ? 'text-zinc-900' : 'text-zinc-500'}`}>
+                    ⚠️ 無法處理漏水源：{formatDuration(editingMethod.warrantyUnhandledMonths ?? editingMethod.warrantyMonths ?? 12)} {editingMethod.warrantyUnhandledVisits ?? editingMethod.warrantyVisits ?? 1} 次保固
+                  </div>
+                  <div className={`${editingMethod.warrantyType === 'leak_ignored' ? 'text-zinc-900' : 'text-zinc-500'}`}>
+                    ❌ 不處理漏水源：{editingMethod.warrantyIgnoredText || '不提供保固'}
+                  </div>
                 </div>
               </div>
             </div>

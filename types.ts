@@ -101,6 +101,10 @@ export interface MethodItem {
   warrantyType?: WarrantyType;    // 漏水源處理狀態
   warrantyMonths?: number;        // 主保固月數
   warrantyVisits?: number;        // leak_unhandled 時的保固次數
+  warrantyHandledMonths?: number;
+  warrantyUnhandledMonths?: number;
+  warrantyUnhandledVisits?: number;
+  warrantyIgnoredText?: string;
 }
 
 export interface ScheduleTask {
@@ -150,6 +154,7 @@ export interface Zone {
   category: ServiceCategory;
   methodId: string;
   methodName: string;
+  warrantyType?: WarrantyType;
   unit: string;
   unitPrice: number;
   difficultyCoefficient: number;

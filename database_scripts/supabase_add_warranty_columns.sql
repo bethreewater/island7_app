@@ -5,3 +5,7 @@
 ALTER TABLE methods ADD COLUMN IF NOT EXISTS "warrantyType" text DEFAULT 'leak_handled';
 ALTER TABLE methods ADD COLUMN IF NOT EXISTS "warrantyMonths" numeric DEFAULT 12;
 ALTER TABLE methods ADD COLUMN IF NOT EXISTS "warrantyVisits" numeric DEFAULT 1;
+ALTER TABLE methods ADD COLUMN IF NOT EXISTS "warrantyHandledMonths" numeric DEFAULT 12;
+ALTER TABLE methods ADD COLUMN IF NOT EXISTS "warrantyUnhandledMonths" numeric DEFAULT 12;
+ALTER TABLE methods ADD COLUMN IF NOT EXISTS "warrantyUnhandledVisits" numeric DEFAULT 1;
+ALTER TABLE methods ADD COLUMN IF NOT EXISTS "warrantyIgnoredText" text DEFAULT '不提供保固';
