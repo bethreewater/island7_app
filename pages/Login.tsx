@@ -2,24 +2,31 @@ import React, { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { Card, Button, Input } from '../components/InputComponents';
 import { Lock, Mail } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export const Login: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const LOGIN_TIMEOUT_MS = 15000;
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
             setLoading(true);
-            const { error } = await supabase.auth.signInWithPassword({
-                email,
-                password,
+            const loginRequest = supabase.auth.signInWithPassword({ email, password });
+            const timeoutRequest = new Promise<never>((_, reject) => {
+                setTimeout(() => reject(new Error('登入逾時，請檢查網路後重試')), LOGIN_TIMEOUT_MS);
             });
 
+            const { error } = await Promise.race([loginRequest, timeoutRequest]);
+
             if (error) throw error;
+            toast.success('登入成功 / LOGIN SUCCESS');
         } catch (error: any) {
-            alert(error.error_description || error.message);
+            toast.error(error?.error_description || error?.message || '登入失敗，請稍後再試', {
+                duration: 5000,
+            });
         } finally {
             setLoading(false);
         }

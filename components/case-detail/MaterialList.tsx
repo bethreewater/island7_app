@@ -25,10 +25,12 @@ export const MaterialList: React.FC<{ zones: Zone[] }> = ({ zones }) => {
             }
 
             const zoneRecipes = recipes.filter(r => r.methodId === zone.methodId);
-            const zoneArea = zone.items.reduce((sum, item) => sum + (item.areaPing || 0), 0);
+            const zoneBasis = zone.unit === '坪'
+                ? zone.items.reduce((sum, item) => sum + (item.areaPing || 0), 0)
+                : zone.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
 
             // If the zone has items but no area, skip it as well
-            if (zoneArea === 0) {
+            if (zoneBasis === 0) {
                 return;
             }
 
@@ -48,8 +50,8 @@ export const MaterialList: React.FC<{ zones: Zone[] }> = ({ zones }) => {
                         totals[mat.id].cost = needed * (mat.unitPrice || 0);
                     }
                 } else {
-                    // Variable items are summed up based on Area
-                    const amount = (recipe.consumptionRate || 0) * zoneArea;
+                    // Variable items are summed up based on pricing basis (area or quantity)
+                    const amount = (recipe.consumptionRate || 0) * zoneBasis;
                     totals[mat.id].qty += amount;
                     totals[mat.id].cost += amount * (mat.unitPrice || 0);
                 }

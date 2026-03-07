@@ -10,9 +10,10 @@ interface LayoutProps {
   onBack?: () => void;
   onNavigate?: (view: NavigationView) => void;
   currentView?: NavigationView;
+  hideMobileNav?: boolean;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, title, onBack, onNavigate, currentView = 'dashboard' }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, title, onBack, onNavigate, currentView = 'dashboard', hideMobileNav = false }) => {
   return (
     <div className="min-h-screen bg-[#fcfcfc] flex flex-col font-sans selection:bg-black selection:text-white">
       {/* 頂部導覽列 / OPTIMIZED HEADER FOR MOBILE */}
@@ -79,7 +80,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, title, onBack, onNavig
 
       {/* 行動端導航列 / MOBILE NAVIGATION */}
       {/* 行動端導航列 / MOBILE NAVIGATION */}
-      <nav className="fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-3xl border-t border-zinc-100 flex justify-around py-4 pb-safe z-[60] md:hidden shadow-[0_-10px_40px_rgba(0,0,0,0.05)]" role="navigation" aria-label="主要導航">
+      {!hideMobileNav && (
+      <nav
+        className="fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-3xl border-t border-zinc-100 flex justify-around py-4 z-[60] md:hidden shadow-[0_-10px_40px_rgba(0,0,0,0.05)]"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}
+        role="navigation"
+        aria-label="主要導航"
+      >
         <NavButton
           icon={<Home size={20} />}
           label="總覽 / DASHBOARD"
@@ -105,6 +112,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title, onBack, onNavig
           onClick={() => onNavigate?.('settings')}
         />
       </nav>
+      )}
     </div>
   );
 };

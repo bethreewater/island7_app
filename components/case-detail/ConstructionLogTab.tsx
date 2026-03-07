@@ -41,7 +41,7 @@ const PhotoGroup = ({ label, photos }: { label: string, photos: string[] }) => (
     <div className="space-y-2">
         <div className="text-[8px] font-black text-zinc-300 uppercase tracking-widest">{label}</div>
         <div className="grid grid-cols-3 gap-2">
-            {photos?.map((p, idx) => <img key={idx} src={p} className="aspect-square object-cover rounded-sm border border-zinc-100 shadow-sm" />)}
+            {photos?.map((p, idx) => <img key={idx} src={p} alt={`${label} photo ${idx + 1}`} loading="lazy" className="aspect-square object-cover rounded-sm border border-zinc-100 shadow-sm" />)}
             {(!photos || photos.length === 0) && <div className="aspect-square bg-zinc-50 border border-dotted border-zinc-200 rounded-sm flex items-center justify-center text-[7px] text-zinc-300 font-black">無照片</div>}
         </div>
     </div>
@@ -51,19 +51,36 @@ const PhotoGroup = ({ label, photos }: { label: string, photos: string[] }) => (
 const LogEditForm: React.FC<{
     logForm: Partial<ConstructionLog>;
     setLogForm: (form: Partial<ConstructionLog>) => void;
+    schedule: ScheduleTask[];
     isBreakActive: boolean;
     onSave: () => void;
     onCancel: () => void;
     getCurrentTime: () => string;
     handleBreakStart: () => void;
     handleBreakEnd: () => void;
-}> = ({ logForm, setLogForm, isBreakActive, onSave, onCancel, getCurrentTime, handleBreakStart, handleBreakEnd }) => {
+}> = ({ logForm, setLogForm, schedule, isBreakActive, onSave, onCancel, getCurrentTime, handleBreakStart, handleBreakEnd }) => {
     const addMaterial = () => setLogForm({ ...logForm, materialsUsed: [...(logForm.materialsUsed || []), { brand: '', name: '' }] });
     const updateMaterial = (i: number, f: 'brand' | 'name', v: string) => {
         const c = [...(logForm.materialsUsed || [])]; c[i] = { ...c[i], [f]: v }; setLogForm({ ...logForm, materialsUsed: c });
     };
     const removeMaterial = (i: number) => {
         const c = [...(logForm.materialsUsed || [])]; c.splice(i, 1); setLogForm({ ...logForm, materialsUsed: c });
+    };
+    const availableTasks = schedule.filter((task) => task.date === logForm.date);
+    const handleTaskSelect = (taskId: string) => {
+        const selectedTask = schedule.find((task) => task.taskId === taskId);
+        if (!selectedTask) {
+            setLogForm({ ...logForm, taskId: undefined, zoneId: undefined, zoneName: undefined });
+            return;
+        }
+
+        setLogForm({
+            ...logForm,
+            taskId: selectedTask.taskId,
+            zoneId: selectedTask.zoneId,
+            zoneName: selectedTask.zoneName,
+            action: selectedTask.taskName,
+        });
     };
 
     return (
@@ -83,6 +100,10 @@ const LogEditForm: React.FC<{
                     <Input label="紀錄日期 / DATE" type="date" value={logForm.date} onChange={e => setLogForm({ ...logForm, date: e.target.value })} />
                     <Select label="天氣 / WEATHER" value={logForm.weather} onChange={e => setLogForm({ ...logForm, weather: e.target.value })}>
                         <option value="晴天">晴天</option><option value="多雲">多雲</option><option value="陰天">陰天</option><option value="雨天">雨天</option>
+                    </Select>
+                    <Select label="對應任務 / TASK LINK" value={logForm.taskId || ''} onChange={e => handleTaskSelect(e.target.value)}>
+                        <option value="">未連結任務</option>
+                        {availableTasks.map((task) => <option key={task.taskId} value={task.taskId}>{task.zoneName} / {task.taskName}</option>)}
                     </Select>
                     {logForm.isNoWorkDay ? (
                         <div className="bg-amber-100 p-2 rounded-sm ring-2 ring-amber-200 flex flex-col justify-center">
@@ -112,7 +133,7 @@ const LogEditForm: React.FC<{
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                                 <PunchButton label="開始" subLabel="START" icon={<Play />} active={!!logForm.startTime} onClick={() => setLogForm({ ...logForm, startTime: getCurrentTime() })} />
                                 <PunchButton label="休息" subLabel="BREAK" icon={<Pause />} active={isBreakActive} onClick={handleBreakStart} />
-                                <PunchButton label="復工" subLabel="RESUME" icon={<SkipForward />} active={logForm.breaks?.length > 0 && !isBreakActive} onClick={handleBreakEnd} />
+                                <PunchButton label="復工" subLabel="RESUME" icon={<SkipForward />} active={(logForm.breaks?.length ?? 0) > 0 && !isBreakActive} onClick={handleBreakEnd} />
                                 <PunchButton label="完工" subLabel="FINISH" icon={<Square />} active={!!logForm.endTime} onClick={() => setLogForm({ ...logForm, endTime: getCurrentTime() })} />
                             </div>
                         </div>
@@ -141,9 +162,25 @@ const LogEditForm: React.FC<{
                                 </div>
                             ))}
                         </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <Input label="工班 / CREW" value={logForm.crewLabel || ''} onChange={e => setLogForm({ ...logForm, crewLabel: e.target.value })} />
+                            <Select label="事件類型 / ISSUE TYPE" value={logForm.issueType || 'normal'} onChange={e => setLogForm({ ...logForm, issueType: e.target.value as ConstructionLog['issueType'] })}>
+                                <option value="normal">正常施工</option>
+                                <option value="weather_delay">天候延誤</option>
+                                <option value="access_issue">進場受阻</option>
+                                <option value="material_delay">材料延誤</option>
+                                <option value="customer_change">客戶變更</option>
+                                <option value="warranty_visit">保固回訪</option>
+                            </Select>
+                            <div className="flex items-center gap-3 p-3 border border-zinc-200 rounded-sm">
+                                <input type="checkbox" id="customerSignedOff" checked={logForm.customerSignedOff || false} onChange={e => setLogForm({ ...logForm, customerSignedOff: e.target.checked })} />
+                                <label htmlFor="customerSignedOff" className="text-sm font-bold">客戶現場確認</label>
+                            </div>
+                        </div>
                     </>
                 )}
                 <Input label="備註 / NOTES" placeholder={logForm.isNoWorkDay ? "順延原因..." : "施作細節..."} value={logForm.description} onChange={e => setLogForm({ ...logForm, description: e.target.value })} />
+                <Input label="證據摘要 / EVIDENCE NOTE" placeholder="例：完成 2 處裂縫補強，水測 30 分鐘無滲漏" value={logForm.evidenceNote || ''} onChange={e => setLogForm({ ...logForm, evidenceNote: e.target.value })} />
                 <div className="flex gap-2 pt-2">
                     <Button variant="outline" className="flex-1 py-3" onClick={onCancel}>取消</Button>
                     <Button className="flex-1 py-3" onClick={onSave}><Save size={16} /> 儲存</Button>
@@ -174,6 +211,8 @@ const LogEntry: React.FC<{
                     <>
                         <span className="text-sm font-black text-zinc-800 truncate">{log.action}</span>
                         <div className="flex items-center gap-1.5 ml-auto shrink-0">
+                            {log.crewLabel && <span className="text-[8px] font-black text-zinc-600 bg-zinc-50 px-1.5 py-0.5 rounded-sm border border-zinc-200">{log.crewLabel}</span>}
+                            {log.customerSignedOff && <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-sm border border-emerald-200">客戶確認</span>}
                             {log.startTime && log.endTime && <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-sm border border-emerald-200">{log.startTime}-{log.endTime}</span>}
                             {hasPhotos && <span className="text-[8px] font-black text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-sm border border-blue-200">照片 {(log.beforePhotos?.length || 0) + (log.afterPhotos?.length || 0)}</span>}
                             {hasMaterials && <span className="text-[8px] font-black text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-sm border border-violet-200">材料 {log.materialsUsed?.length}</span>}
@@ -188,6 +227,13 @@ const LogEntry: React.FC<{
             {isExpanded && (
                 <div className="border-t border-zinc-100 p-4 md:p-5 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
                     {log.description && <p className="text-[11px] md:text-sm text-zinc-500 leading-relaxed">{log.description}</p>}
+                    {(log.zoneName || log.issueType || log.evidenceNote) && (
+                        <div className="flex flex-wrap gap-2">
+                            {log.zoneName && <span className="text-[10px] font-bold text-zinc-700 bg-zinc-50 px-2 py-1 border border-zinc-100 rounded-sm">區域 {log.zoneName}</span>}
+                            {log.issueType && <span className="text-[10px] font-bold text-zinc-700 bg-zinc-50 px-2 py-1 border border-zinc-100 rounded-sm">事件 {log.issueType}</span>}
+                            {log.evidenceNote && <span className="text-[10px] font-bold text-zinc-700 bg-zinc-50 px-2 py-1 border border-zinc-100 rounded-sm">證據 {log.evidenceNote}</span>}
+                        </div>
+                    )}
                     {!log.isNoWorkDay && (log.startTime || log.endTime) && (
                         <div className="flex flex-wrap items-center gap-2">
                             {log.startTime && <div className="flex items-center gap-1.5 text-[9px] font-black text-zinc-600 bg-zinc-50 px-2 py-0.5 border border-zinc-100 rounded-sm"><Play size={10} className="text-zinc-400" /> {log.startTime}</div>}
@@ -459,6 +505,7 @@ export const ConstructionLogTab: React.FC<{
         setLogForm({
             id, date: defaultDate, weather: '晴天',
             action: STANDARD_LOG_ACTIONS[0], description: '', beforePhotos: [], afterPhotos: [],
+            issueType: 'normal', evidenceNote: '', crewLabel: '', customerSignedOff: false,
             startTime: '', breaks: [], endTime: '', delayDays: 0, isNoWorkDay: false, materialsUsed: []
         });
 
@@ -488,13 +535,21 @@ export const ConstructionLogTab: React.FC<{
         let updatedSchedule = undefined;
         if (delay > 0) {
             updatedSchedule = schedule.map(task => {
+                if (finalLog.taskId) {
+                    if (task.taskId === finalLog.taskId && !task.isCompleted) {
+                        return { ...task, date: addDays(task.date, delay), blockedReason: finalLog.issueType || 'delay' };
+                    }
+                    return task;
+                }
                 if (task.date >= finalLog.date && !task.isCompleted) {
                     return { ...task, date: addDays(task.date, delay) };
                 }
                 return task;
             });
         } else {
-            if (schedule.some(t => t.date === finalLog.date && !t.isCompleted)) {
+            if (finalLog.taskId) {
+                updatedSchedule = schedule.map(task => task.taskId === finalLog.taskId ? { ...task, isCompleted: true, blockedReason: undefined } : task);
+            } else if (schedule.some(t => t.date === finalLog.date && !t.isCompleted)) {
                 updatedSchedule = schedule.map(task => task.date === finalLog.date ? { ...task, isCompleted: true } : task);
             }
         }
@@ -504,11 +559,13 @@ export const ConstructionLogTab: React.FC<{
 
     const autoSyncFromSchedule = () => {
         const today = toLocalDate();
-        const pendingTasks = schedule.filter(task => task.date <= today && !logs.some(l => l.date === task.date && l.action.includes(task.taskName)));
+        const pendingTasks = schedule.filter(task => task.date <= today && !logs.some(l => l.taskId === task.taskId || (l.date === task.date && l.action.includes(task.taskName))));
         if (pendingTasks.length === 0) { toast('所有排程皆已同步', { icon: 'ℹ️' }); return; }
         const autoLogs: ConstructionLog[] = pendingTasks.map(task => ({
             id: `LOG-AUTO-${Date.now()}-${Math.random()}`, date: task.date, weather: '晴天',
+            taskId: task.taskId, zoneId: task.zoneId, zoneName: task.zoneName,
             action: `${task.taskName} / ${task.zoneName}`, description: '[系統自動生成] 請點擊編輯。',
+            issueType: 'normal', evidenceNote: '', crewLabel: '', customerSignedOff: false,
             beforePhotos: [], afterPhotos: [], startTime: '', breaks: [], endTime: '', delayDays: 0, isNoWorkDay: false, materialsUsed: []
         }));
         onUpdate([...autoLogs, ...logs].sort((a, b) => b.date.localeCompare(a.date)));
@@ -591,7 +648,7 @@ export const ConstructionLogTab: React.FC<{
             {/* New entry form */}
             {isNewEntry && (
                 <div ref={editRef}>
-                    <LogEditForm logForm={logForm} setLogForm={setLogForm} isBreakActive={isBreakActive}
+                    <LogEditForm logForm={logForm} setLogForm={setLogForm} schedule={schedule} isBreakActive={isBreakActive}
                         onSave={handleSave} onCancel={() => setEditingLogId(null)}
                         getCurrentTime={getCurrentTime} handleBreakStart={handleBreakStart} handleBreakEnd={handleBreakEnd} />
                 </div>
@@ -604,7 +661,7 @@ export const ConstructionLogTab: React.FC<{
                         <LogEntry log={log} isExpanded={expandedIds.has(log.id)} isEditing={editingLogId === log.id}
                             onToggle={() => toggleExpand(log.id)} onEdit={() => startEdit(log)}
                             onDelete={() => onUpdate(logs.filter(l => l.id !== log.id))}
-                            editForm={<LogEditForm logForm={logForm} setLogForm={setLogForm} isBreakActive={isBreakActive}
+                            editForm={<LogEditForm logForm={logForm} setLogForm={setLogForm} schedule={schedule} isBreakActive={isBreakActive}
                                 onSave={handleSave} onCancel={() => setEditingLogId(null)}
                                 getCurrentTime={getCurrentTime} handleBreakStart={handleBreakStart} handleBreakEnd={handleBreakEnd} />} />
                     </div>

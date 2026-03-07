@@ -3,13 +3,15 @@ import {
     CaseData,
     ScheduleTask,
     isConstructionStatus,
-    isAssessmentStatus
+    isAssessmentStatus,
+    normalizeCaseStatus,
+    CaseStatus
 } from '../types';
 import { MapPin, TrendingUp, Clock } from 'lucide-react';
 
 interface TodayTasksProps {
     cases: CaseData[];
-    onSelectCase: (caseData: CaseData) => void;
+    onSelectCase: (caseId: string, targetTab?: 'eval' | 'log' | 'quote' | 'mats' | 'schedule' | 'warranty') => void;
 }
 
 interface TaskInfo {
@@ -21,7 +23,7 @@ interface TaskInfo {
 }
 
 export const TodayTasks: React.FC<TodayTasksProps> = ({ cases, onSelectCase }) => {
-    const { activeToday, pendingStart } = useMemo(() => {
+    const { activeToday, pendingStart, planningQueue, paymentQueue } = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
 
         const activeToday: TaskInfo[] = cases
@@ -51,8 +53,10 @@ export const TodayTasks: React.FC<TodayTasksProps> = ({ cases, onSelectCase }) =
             .filter(item => item.todayTasks.length > 0);
 
         const pendingStart = cases.filter(c => isAssessmentStatus(c.status));
+        const planningQueue = cases.filter(c => normalizeCaseStatus(c.status) === CaseStatus.PLANNING || normalizeCaseStatus(c.status) === CaseStatus.DEPOSIT_RECEIVED);
+        const paymentQueue = cases.filter(c => normalizeCaseStatus(c.status) === CaseStatus.FINAL_PAYMENT || (normalizeCaseStatus(c.status) === CaseStatus.DEPOSIT_RECEIVED && !c.depositReceivedDate));
 
-        return { activeToday, pendingStart };
+        return { activeToday, pendingStart, planningQueue, paymentQueue };
     }, [cases]);
 
     const todayDate = new Date().toLocaleDateString('zh-TW', {
@@ -92,7 +96,7 @@ export const TodayTasks: React.FC<TodayTasksProps> = ({ cases, onSelectCase }) =
                             {activeToday.map(({ case: caseItem, todayTasks, progress, totalDays, currentDay }) => (
                                 <div
                                     key={caseItem.caseId}
-                                    onClick={() => onSelectCase(caseItem)}
+                                    onClick={() => onSelectCase(caseItem.caseId, 'log')}
                                     className="border-2 border-green-200 rounded-lg p-4 hover:border-green-400 hover:shadow-md transition-all cursor-pointer bg-gradient-to-br from-white to-green-50/30"
                                 >
                                     {/* Case Name */}
@@ -162,7 +166,7 @@ export const TodayTasks: React.FC<TodayTasksProps> = ({ cases, onSelectCase }) =
                             {pendingStart.slice(0, 3).map(caseItem => (
                                 <div
                                     key={caseItem.caseId}
-                                    onClick={() => onSelectCase(caseItem)}
+                                    onClick={() => onSelectCase(caseItem.caseId, 'eval')}
                                     className="flex items-center gap-3 p-3 border border-orange-200 rounded-lg hover:border-orange-400 hover:bg-orange-50/30 transition-all cursor-pointer"
                                 >
                                     <Clock size={16} className="text-orange-500 shrink-0" />
@@ -186,8 +190,35 @@ export const TodayTasks: React.FC<TodayTasksProps> = ({ cases, onSelectCase }) =
                     </div>
                 )}
 
+                {(planningQueue.length > 0 || paymentQueue.length > 0) && (
+                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/20">
+                            <div className="text-xs font-black text-blue-700 uppercase tracking-wider mb-3">備料/待進場 ({planningQueue.length})</div>
+                            <div className="space-y-2">
+                                {planningQueue.slice(0, 3).map((caseItem) => (
+                                    <button key={caseItem.caseId} onClick={() => onSelectCase(caseItem.caseId, 'schedule')} className="w-full text-left bg-white border border-blue-100 rounded-sm px-3 py-2 hover:border-blue-300">
+                                        <div className="font-bold text-sm text-zinc-900 truncate">{caseItem.customerName}</div>
+                                        <div className="text-xs text-zinc-500 truncate">{caseItem.address || '待補地址'} / {caseItem.buildingContext || '待補建物資訊'}</div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="border border-amber-200 rounded-lg p-4 bg-amber-50/20">
+                            <div className="text-xs font-black text-amber-700 uppercase tracking-wider mb-3">請款/收款追蹤 ({paymentQueue.length})</div>
+                            <div className="space-y-2">
+                                {paymentQueue.slice(0, 3).map((caseItem) => (
+                                    <button key={caseItem.caseId} onClick={() => onSelectCase(caseItem.caseId, 'quote')} className="w-full text-left bg-white border border-amber-100 rounded-sm px-3 py-2 hover:border-amber-300">
+                                        <div className="font-bold text-sm text-zinc-900 truncate">{caseItem.customerName}</div>
+                                        <div className="text-xs text-zinc-500 truncate">{normalizeCaseStatus(caseItem.status) === CaseStatus.FINAL_PAYMENT ? '待收尾款' : '頭期尚未入帳'}</div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Empty State */}
-                {activeToday.length === 0 && pendingStart.length === 0 && (
+                {activeToday.length === 0 && pendingStart.length === 0 && planningQueue.length === 0 && paymentQueue.length === 0 && (
                     <div className="text-center py-8">
                         <div className="text-4xl mb-3">🎉</div>
                         <div className="text-zinc-500 font-bold mb-1">今日無排程施工</div>

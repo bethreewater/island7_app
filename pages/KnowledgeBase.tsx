@@ -22,7 +22,19 @@ const RecipeManager = ({ methodId }: { methodId: string }) => {
   const [rate, setRate] = useState<number>(0);
 
   useEffect(() => {
-    load();
+    let mounted = true;
+    const loadData = async () => {
+      const [allMaterials, allRecipes] = await Promise.all([getMaterials(), getRecipes()]);
+      if (!mounted) return;
+      setMaterials(allMaterials);
+      setRecipes(allRecipes.filter(r => r.methodId === methodId));
+    };
+
+    void loadData();
+
+    return () => {
+      mounted = false;
+    };
   }, [methodId]);
 
   const load = async () => {

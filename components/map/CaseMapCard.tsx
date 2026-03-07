@@ -76,6 +76,16 @@ export const CaseMapCard: React.FC<CaseMapCardProps> = ({
                                 {new Date(caseData.createdDate).toLocaleDateString('zh-TW')} 立案
                             </span>
                         </div>
+                        {(caseData.siteContactName || caseData.siteContactPhone) && (
+                            <div className="text-xs text-zinc-500 bg-zinc-50 border border-zinc-100 rounded-sm px-3 py-2">
+                                現場聯絡：{caseData.siteContactName || caseData.customerName} / {caseData.siteContactPhone || caseData.phone || '未填寫'}
+                            </div>
+                        )}
+                        {caseData.buildingContext && (
+                            <div className="text-xs text-zinc-500 bg-zinc-50 border border-zinc-100 rounded-sm px-3 py-2">
+                                建物資訊：{caseData.buildingContext}
+                            </div>
+                        )}
                     </div>
 
                     {/* Actions */}

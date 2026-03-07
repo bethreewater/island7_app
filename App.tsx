@@ -5,7 +5,7 @@ import { Session } from '@supabase/supabase-js';
 import { Toaster } from 'react-hot-toast';
 
 import { NetworkStatusIndicator } from './components/NetworkStatusIndicator';
-import { getCaseDetails, getCasesPaginated, initDB } from './services/storageService';
+import { getCaseDetails, getCases, initDB, subscribeToCases } from './services/storageService';
 
 const Dashboard = React.lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })));
 const CaseDetail = React.lazy(() => import('./pages/CaseDetail').then((m) => ({ default: m.CaseDetail })));
@@ -64,6 +64,7 @@ const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [view, setView] = useState<AppView>('dashboard');
   const [selectedCase, setSelectedCase] = useState<CaseData | null>(null);
+  const [selectedCaseInitialTab, setSelectedCaseInitialTab] = useState<'eval' | 'log' | 'quote' | 'mats' | 'schedule' | 'warranty' | undefined>(undefined);
   const [cases, setCases] = useState<CaseData[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [persistedView, setPersistedView] = useState<PersistedViewState | null>(() => loadPersistedViewState());
@@ -97,8 +98,7 @@ const App: React.FC = () => {
       setIsDataLoading(true);
       try {
         await initDB();
-        // Use paginated loading for better performance
-        const { data } = await getCasesPaginated(1, 50); // Load first 50 cases
+        const data = await getCases();
         if (mounted) {
           setCases(data);
         }
@@ -111,18 +111,16 @@ const App: React.FC = () => {
 
     loadData();
 
-    /*
     const dataSub = subscribeToCases(async () => {
       const data = await getCases();
       if (mounted) {
-        setCases(data.sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime()));
+        setCases(data);
       }
     });
-    */
 
     return () => {
       mounted = false;
-      // dataSub.unsubscribe();
+      dataSub.unsubscribe();
     };
   }, [session]);
 
@@ -283,6 +281,15 @@ const App: React.FC = () => {
 
   const handleCaseSelect = useCallback((caseData: CaseData) => {
     setSelectedCase(caseData);
+    setSelectedCaseInitialTab(undefined);
+    setView('detail');
+  }, []);
+
+  const handleOpenCaseWithTab = useCallback(async (caseId: string, targetTab?: 'eval' | 'log' | 'quote' | 'mats' | 'schedule' | 'warranty') => {
+    const fullData = await getCaseDetails(caseId);
+    if (!fullData) return;
+    setSelectedCase(fullData);
+    setSelectedCaseInitialTab(targetTab);
     setView('detail');
   }, []);
 
@@ -297,9 +304,37 @@ const App: React.FC = () => {
 
   if (!session) {
     return (
-      <Suspense fallback={<LoadingFallback />}>
-        <Login />
-      </Suspense>
+      <>
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#18181b',
+              color: '#fff',
+              fontWeight: 900,
+              fontSize: '11px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            },
+            success: {
+              iconTheme: {
+                primary: '#10b981',
+                secondary: '#fff',
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#fff',
+              },
+            },
+          }}
+        />
+        <Suspense fallback={<LoadingFallback />}>
+          <Login />
+        </Suspense>
+      </>
     );
   }
 
@@ -308,7 +343,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50" role="application" aria-label="Island7 App">
       {/* Network Status Indicator */}
       <NetworkStatusIndicator />
 
@@ -339,9 +374,9 @@ const App: React.FC = () => {
         }}
       />
       <Suspense fallback={<LoadingFallback />}>
-        {view === 'dashboard' && <Dashboard cases={cases} onSelectCase={handleCaseSelect} onOpenKB={() => setView('kb')} onNavigate={handleNavigate} />}
+        {view === 'dashboard' && <Dashboard cases={cases} onSelectCase={handleCaseSelect} onOpenCaseWithTab={handleOpenCaseWithTab} onOpenKB={() => setView('kb')} onNavigate={handleNavigate} />}
         {view === 'kb' && <KnowledgeBase onBack={() => setView('dashboard')} onNavigate={handleNavigate} />}
-        {view === 'detail' && selectedCase && <CaseDetail caseData={selectedCase} onBack={() => setView('dashboard')} onUpdate={handleCaseUpdate} onNavigate={handleNavigate} />}
+        {view === 'detail' && selectedCase && <CaseDetail caseData={selectedCase} initialTab={selectedCaseInitialTab} onBack={() => setView('dashboard')} onUpdate={handleCaseUpdate} onNavigate={handleNavigate} />}
         {view === 'datacenter' && <DataCenter onNavigate={handleNavigate} />}
         {view === 'settings' && <Settings onNavigate={handleNavigate} />}
         {view === 'map' && <ConstructionMap cases={cases} onNavigate={handleNavigate} onCaseClick={handleCaseSelect} />}

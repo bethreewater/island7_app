@@ -10,6 +10,7 @@ import {
     NavigationView,
     isActiveStatus,
     isAssessmentStatus,
+    isCompletedStatus,
     normalizeCaseStatus
 } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
@@ -88,9 +89,19 @@ export const DataCenter: React.FC<DataCenterProps> = ({ onNavigate }) => {
         const assessmentCases = basicData.filter(c => isAssessmentStatus(c.status)).length;
         const activeCases = basicData.filter(c => isActiveStatus(c.status)).length;
         const warrantyCases = basicData.filter(c => normalizeCaseStatus(c.status) === CaseStatus.WARRANTY).length;
-        const totalRevenue = basicData.reduce((sum, c) => sum + (c.finalPrice || 0), 0);
+        const totalRevenue = basicData
+            .filter(c => !isAssessmentStatus(c.status))
+            .reduce((sum, c) => sum + (c.finalPrice || 0), 0);
+        const totalCollected = basicData.reduce((sum, c) => {
+            const value = c.finalPrice || 0;
+            let paid = 0;
+            if (c.depositReceivedDate) paid += value * 0.7;
+            if (c.finalPaymentReceivedDate) paid += value * 0.3;
+            return sum + paid;
+        }, 0);
+        const outstanding = Math.max(totalRevenue - totalCollected, 0);
 
-        return { assessmentCases, activeCases, warrantyCases, totalRevenue };
+        return { assessmentCases, activeCases, warrantyCases, totalRevenue, totalCollected, outstanding };
     }, [basicData]);
 
     const statusData = useMemo(() => {
@@ -116,7 +127,8 @@ export const DataCenter: React.FC<DataCenterProps> = ({ onNavigate }) => {
             return acc;
         }, {} as Record<string, { name: string, value: number, count: number }>);
 
-        return Object.values(groups).sort((a: any, b: any) => b.value - a.value);
+        const values = Object.values(groups) as { name: string; value: number; count: number }[];
+        return values.sort((a, b) => b.value - a.value);
     }, [categoryStats]);
 
     return (
@@ -169,13 +181,29 @@ export const DataCenter: React.FC<DataCenterProps> = ({ onNavigate }) => {
     );
 };
 
-const OverviewTab = ({ metrics, statusData, categoryData, basicLoading, categoryLoading }: any) => (
+interface OverviewTabProps {
+    metrics: {
+        assessmentCases: number;
+        activeCases: number;
+        warrantyCases: number;
+        totalRevenue: number;
+        totalCollected: number;
+        outstanding: number;
+    };
+    statusData: { name: string; value: number; color: string }[];
+    categoryData: { name: string; value: number; count: number }[];
+    basicLoading: boolean;
+    categoryLoading: boolean;
+}
+
+const OverviewTab: React.FC<OverviewTabProps> = ({ metrics, statusData, categoryData, basicLoading, categoryLoading }) => (
     <div className="space-y-8 animate-in slide-in-from-right duration-300">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <MetricCard icon={<FolderOpen size={20} />} label="評估中 / ASSESSMENT" value={metrics.assessmentCases} subtext="New Leads" loading={basicLoading} />
             <MetricCard icon={<Activity size={20} />} label="進行中 / ACTIVE" value={metrics.activeCases} subtext="In Progress" loading={basicLoading} />
             <MetricCard icon={<Shield size={20} />} label="保固中 / WARRANTY" value={metrics.warrantyCases} subtext="Completed" loading={basicLoading} />
             <MetricCard icon={<TrendingUp size={20} />} label="預估總營收 / REVENUE" value={metrics.totalRevenue} prefix="$" subtext="Total Value" highlight loading={basicLoading} />
+            <MetricCard icon={<Calculator size={20} />} label="待收款 / OUTSTANDING" value={metrics.outstanding} prefix="$" subtext={`已收 $${metrics.totalCollected.toLocaleString()}`} loading={basicLoading} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -195,7 +223,7 @@ const OverviewTab = ({ metrics, statusData, categoryData, basicLoading, category
                                     paddingAngle={5}
                                     dataKey="value"
                                 >
-                                    {statusData.map((entry: any, index: number) => (
+                                    {statusData.map((entry, index: number) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} />
                                     ))}
                                 </Pie>
@@ -268,11 +296,24 @@ const useCountUp = (end: number, duration: number = 1500) => {
     return count;
 };
 
-const MetricCard = ({ icon, label, value, subtext, highlight = false, loading = false, prefix = '' }: any) => {
-    // Only animate if value is a number
-    const isNumber = typeof value === 'number';
-    const animatedValue = isNumber ? useCountUp(value) : value;
-    const displayValue = isNumber ? `${prefix}${animatedValue.toLocaleString()}` : value;
+interface MetricCardProps {
+    icon: React.ReactNode;
+    label: string;
+    value: number | string;
+    subtext: string;
+    highlight?: boolean;
+    loading?: boolean;
+    prefix?: string;
+    suffix?: string;
+}
+
+const MetricCard: React.FC<MetricCardProps> = ({ icon, label, value, subtext, highlight = false, loading = false, prefix = '', suffix = '' }) => {
+    const numericValue = typeof value === 'number' ? value : Number(value);
+    const isNumber = Number.isFinite(numericValue);
+    const animatedValue = useCountUp(isNumber ? numericValue : 0);
+    const displayValue = isNumber
+        ? `${prefix}${animatedValue.toLocaleString()}${suffix}`
+        : `${prefix}${value}${suffix}`;
 
     return (
         <div className={`p-5 rounded-lg border ${highlight ? 'bg-black text-white border-black' : 'bg-white text-gray-800 border-gray-100'} shadow-sm flex flex-col gap-4 relative overflow-hidden transition-all hover:scale-[1.02]`}>
@@ -296,7 +337,13 @@ const MetricCard = ({ icon, label, value, subtext, highlight = false, loading = 
 };
 
 // 施工效率分析 Tab
-const EfficiencyTab = ({ cases, methods, loading }: { cases: CaseData[]; methods: MethodItem[]; loading: boolean }) => {
+interface EfficiencyTabProps {
+    cases: CaseData[];
+    methods: MethodItem[];
+    loading: boolean;
+}
+
+const EfficiencyTab: React.FC<EfficiencyTabProps> = ({ cases, methods, loading }) => {
     const methodPerformance = useMemo(() => analyzeMethodPerformance(cases, methods), [cases, methods]);
     const delayedCases = useMemo(() => getDelayedCases(cases), [cases]);
     const avgDays = useMemo(() => calculateAvgConstructionDays(cases), [cases]);
@@ -336,7 +383,7 @@ const EfficiencyTab = ({ cases, methods, loading }: { cases: CaseData[]; methods
                 <MetricCard 
                     icon={<TrendingUp size={20} />} 
                     label="整體準時率 / ON-TIME" 
-                    value={onTimeRate.toFixed(1)} 
+                    value={Number(onTimeRate.toFixed(1))} 
                     subtext="完工案件"
                     prefix=""
                     suffix="%"

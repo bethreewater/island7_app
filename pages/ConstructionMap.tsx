@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, ZoomControl, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, ZoomControl, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { CloudRain, Route as RouteIcon } from 'lucide-react';
 import { Layout } from '../components/Layout';
@@ -46,6 +46,13 @@ const MapResizeFix: React.FC = () => {
         return () => clearTimeout(timer);
     }, [map]);
 
+    return null;
+};
+
+const MapClickHandler: React.FC<{ onMapClick: () => void }> = ({ onMapClick }) => {
+    useMapEvents({
+        click: () => onMapClick(),
+    });
     return null;
 };
 
@@ -117,18 +124,8 @@ export const ConstructionMap: React.FC<ConstructionMapProps> = ({
             return;
         }
         setFilterStatuses(prev => {
-            if (prev.includes(status)) {
-                return prev.filter(s => s !== status);
-            } else {
-                // 單選模式？還是多選？建議單選或是累積？
-                // 為了簡單直覺，這裡實作「累積多選」，但如果是第一次點，是否要清空其他的？
-                // 工務華哥說：「我想看施工中」，他點施工中。
-                // 如果他先看施工中， फिर想看評估中，通常是切換。
-                // 所以這裡實作：點擊「全部」清空。點擊某個狀態 -> Toggle。
-                // 如果目前是空（全部），點某個狀態，則只顯示該狀態。
-                if (prev.length === 0) return [status];
-                return [...prev, status];
-            }
+            if (prev.length === 1 && prev[0] === status) return [];
+            return [status];
         });
         // 切換過濾時關閉卡片
         setActiveCase(null);
@@ -207,7 +204,6 @@ export const ConstructionMap: React.FC<ConstructionMapProps> = ({
                         zoomControl={false}
                         className="h-full w-full"
                         style={{ zIndex: 1 }}
-                        onClick={() => setActiveCase(null)} // 點擊空白處關閉卡片
                     >
                         <TileLayer
                             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -215,6 +211,7 @@ export const ConstructionMap: React.FC<ConstructionMapProps> = ({
                         />
                         <ZoomControl position="topright" />
                         <MapResizeFix />
+                        <MapClickHandler onMapClick={() => setActiveCase(null)} />
                         <LocationControl />
 
                         {/* Phase 3 Layers */}
@@ -232,7 +229,7 @@ export const ConstructionMap: React.FC<ConstructionMapProps> = ({
                                     icon={createIcon(color, isSelected)}
                                     eventHandlers={{
                                         click: (e) => {
-                                            L.DomEvent.stopPropagation(e); // 防止地圖點擊事件觸發
+                                            L.DomEvent.stopPropagation(e.originalEvent); // 防止地圖點擊事件觸發
                                             setActiveCase(caseData);
                                         }
                                     }}

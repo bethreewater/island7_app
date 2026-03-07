@@ -105,6 +105,11 @@ export const ZoneCard: React.FC<{ zone: Zone; methods: MethodItem[]; onUpdate: (
                             {Object.values(ServiceCategory).map(cat => <option key={cat} value={cat}>{cat}</option>)}
                         </Select>
                     </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Input label="基面狀況 / SUBSTRATE" value={zone.substrateNote || ''} onChange={e => onUpdate({ ...zone, substrateNote: e.target.value })} />
+                        <Input label="漏況判讀 / LEAK CONDITION" value={zone.leakConditionNote || ''} onChange={e => onUpdate({ ...zone, leakConditionNote: e.target.value })} />
+                        <Input label="不施作範圍 / EXCLUSION" value={zone.exclusionNote || ''} onChange={e => onUpdate({ ...zone, exclusionNote: e.target.value })} />
+                    </div>
                 </div>
 
                 <div className="space-y-2">
@@ -186,9 +191,10 @@ export const ZoneCard: React.FC<{ zone: Zone; methods: MethodItem[]; onUpdate: (
                                 </div>
                                 <ImageUploader images={item.photos} onImagesChange={imgs => updateItem(iIdx, 'photos', imgs)} maxImages={3} />
                             </div>
+                            <Input label="測量備註 / ITEM NOTE" value={item.note || ''} onChange={e => updateItem(iIdx, 'note', e.target.value)} />
                         </div>
                     ))}
-                    <Button onClick={() => onUpdate({ ...zone, items: [...zone.items, { itemId: `I-${Date.now()}`, length: 0, width: 0, areaPing: 0, quantity: 1, itemPrice: zone.unitPrice, photos: [] }] })} variant="outline" className="w-full text-[9px]"><Plus size={14} /> 新增測量項 / ADD ITEM</Button>
+                    <Button onClick={() => onUpdate({ ...zone, items: [...zone.items, { itemId: `I-${Date.now()}`, measurementMode: isPing ? 'area' : zone.unit === '米' ? 'length' : zone.unit === '式' ? 'set' : 'quantity', length: 0, width: 0, areaPing: 0, quantity: 1, itemPrice: zone.unitPrice, note: '', photos: [] }] })} variant="outline" className="w-full text-[9px]"><Plus size={14} /> 新增測量項 / ADD ITEM</Button>
                 </div>
             </div>
         </Card>

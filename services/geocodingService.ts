@@ -22,6 +22,7 @@ interface CacheEntry {
 }
 
 const GEOCODE_PROXY_URL = import.meta.env.VITE_GEOCODE_PROXY_URL as string | undefined;
+const NOMINATIM_CONTACT_EMAIL = import.meta.env.VITE_NOMINATIM_CONTACT_EMAIL as string | undefined;
 const CACHE_PREFIX = 'island7:geocode:';
 const HIT_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 const MISS_CACHE_TTL_MS = 1000 * 60 * 60; // 1 hour
@@ -133,7 +134,8 @@ const tryNominatimQuery = async (address: string): Promise<GeocodingResult | nul
             `&format=json` +
             `&limit=1` +
             `&accept-language=zh-TW` +
-            `&addressdetails=1`;
+            `&addressdetails=1` +
+            (NOMINATIM_CONTACT_EMAIL ? `&email=${encodeURIComponent(NOMINATIM_CONTACT_EMAIL)}` : '');
 
         const response = await fetch(url);
         if (!response.ok) return null;

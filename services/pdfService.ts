@@ -5,8 +5,11 @@ import { CaseData, ServiceCategory, Zone, WarrantyType, MethodItem } from '../ty
 import { METHOD_CATALOG } from '../constants';
 import { getMaterials, getRecipes, getMethods } from './storageService';
 
-const COMPANY_NAME = "海島七號工程 / ISLAND NO. 7 ENGINEERING";
-const COMPANY_ID = "統一編號 / VAT: XXXXXXXX";
+const COMPANY_NAME = import.meta.env.VITE_COMPANY_NAME || "海島七號工程 / ISLAND NO. 7 ENGINEERING";
+const COMPANY_ID = `統一編號 / VAT: ${import.meta.env.VITE_COMPANY_VAT || 'N/A'}`;
+const BANK_CODE = import.meta.env.VITE_COMPANY_BANK_CODE || 'N/A';
+const BANK_NAME = import.meta.env.VITE_COMPANY_BANK_NAME || 'N/A';
+const BANK_ACCOUNT = import.meta.env.VITE_COMPANY_BANK_ACCOUNT || 'N/A';
 
 // --- FONT LOADER with IndexedDB Caching ---
 // Uses locally hosted Noto Sans TC (TTF) for maximum reliability and compatibility.
@@ -148,6 +151,16 @@ const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
 };
 
+const drawProjectMeta = (doc: jsPDF, data: CaseData, startY: number) => {
+  doc.setFontSize(9.5);
+  doc.setTextColor(...PDF_THEME.textMain);
+  doc.text(`現場聯絡 / SITE CONTACT: ${data.siteContactName || data.customerName || '-'}`, 14, startY);
+  doc.text(`現場電話 / SITE PHONE: ${data.siteContactPhone || data.phone || '-'}`, 14, startY + 6);
+  doc.text(`建物資訊 / BUILDING: ${data.buildingContext || '-'}`, 110, startY);
+  doc.text(`地址備註 / ACCESS: ${data.addressNote || data.accessConstraints || '-'}`, 110, startY + 6);
+  return startY + 12;
+};
+
 // Helper to get English Method Name
 const getMethodDisplayName = (id: string, originalName: string) => {
   const method = METHOD_CATALOG.find(m => m.id === id);
@@ -209,7 +222,37 @@ const getZoneTotalArea = (zone: Zone): number =>
 // Database methods cache for PDF generation
 let dbMethodsCache: MethodItem[] | null = null;
 let dbMethodsCacheTime = 0;
-const DB_CACHE_TTL = 30000; // 30 seconds
+const DB_CACHE_TTL = 5000;
+
+const imageDataUrlCache = new Map<string, string>();
+
+const fetchImageAsDataUrl = async (url: string): Promise<string | null> => {
+  if (!url) return null;
+  const cached = imageDataUrlCache.get(url);
+  if (cached) return cached;
+
+  try {
+    const response = await fetch(url, { mode: 'cors' });
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Failed to convert image to data URL'));
+      reader.readAsDataURL(blob);
+    });
+    if (!dataUrl) return null;
+    imageDataUrlCache.set(url, dataUrl);
+    return dataUrl;
+  } catch (error) {
+    console.warn('Image fetch failed:', error);
+    return null;
+  }
+};
+
+const normalizeDepositRatio = (value?: number): number => {
+  return 0.7;
+};
 
 const loadDbMethods = async (): Promise<MethodItem[]> => {
   const now = Date.now();
@@ -464,7 +507,15 @@ export const generateEvaluationPDF = async (data: CaseData, mode: 'save' | 'prev
   doc.text(`建立日期 / DATE: ${formatDate(data.createdDate)}`, 110, 55);
   doc.text(`工程地址 / ADDRESS: ${data.address || '-'}`, 110, 61);
 
-  let currentY = 70;
+  let currentY = drawProjectMeta(doc, data, 69) + 4;
+
+  currentY = ensurePageSpace(doc, currentY, 24);
+  doc.setFillColor(...PDF_THEME.surface);
+  doc.rect(14, currentY, 182, 18, 'F');
+  doc.setFontSize(9.5);
+  doc.text(`漏水症狀 / LEAK SYMPTOMS: ${data.leakSymptoms || '-'}`, 16, currentY + 6);
+  doc.text(`漏水源判定 / ROOT CAUSE: ${data.leakSourceDiagnosis || '-'}`, 16, currentY + 12);
+  currentY += 24;
 
   for (let zIndex = 0; zIndex < data.zones.length; zIndex++) {
     const zone = data.zones[zIndex];
@@ -495,7 +546,7 @@ export const generateEvaluationPDF = async (data: CaseData, mode: 'save' | 'prev
     doc.setTextColor(30, 30, 30);
     doc.setFontSize(9);
 
-    zone.items.forEach((item, iIndex) => {
+    for (const [iIndex, item] of zone.items.entries()) {
       const hasPhotos = item.photos && item.photos.length > 0;
       let neededHeight = 10;
       if (hasPhotos) {
@@ -543,7 +594,7 @@ export const generateEvaluationPDF = async (data: CaseData, mode: 'save' | 'prev
         const imgHeight = 40;
         const gap = 5;
 
-        item.photos!.forEach((photo, pIdx) => {
+        for (const [pIdx, photo] of item.photos!.entries()) {
           if (pIdx > 0 && pIdx % 4 === 0) {
             currentY += imgHeight + 5;
             xOffset = 20;
@@ -554,18 +605,21 @@ export const generateEvaluationPDF = async (data: CaseData, mode: 'save' | 'prev
           doc.rect(xOffset, currentY, imgWidth, imgHeight);
 
           try {
-            doc.addImage(photo, 'JPEG', xOffset, currentY, imgWidth, imgHeight);
+            const dataUrl = await fetchImageAsDataUrl(photo);
+            if (dataUrl) {
+              doc.addImage(dataUrl, 'JPEG', xOffset, currentY, imgWidth, imgHeight);
+            }
           } catch (e) {
             console.warn("Image add fail", e);
           }
           xOffset += imgWidth + gap;
-        });
+        }
         currentY += imgHeight + 5;
       }
       // Divider
       doc.setDrawColor(230, 230, 230);
       doc.line(14, currentY, 196, currentY);
-    });
+    }
 
     currentY += 6;
 
@@ -716,6 +770,11 @@ export const generateQuotationPDF = async (data: CaseData, mode: 'save' | 'previ
   doc.text(`工程地址 / ADDRESS: ${data.address || '-'}`, 14, 63);
   doc.text(`建立日期 / DATE: ${formatDate(data.createdDate)}`, 120, 45);
   doc.text(`預估工期 / DURATION: 約 ${projectDays} 天`, 120, 51);
+  doc.text(`報價版本 / VERSION: V${data.quoteVersion || 1}`, 120, 57);
+  doc.text(`現場聯絡 / SITE CONTACT: ${data.siteContactName || data.customerName || '-'}`, 120, 63);
+  if (data.contractSignedDate || data.depositReceivedDate) {
+    doc.text(`簽約 / 頭期: ${formatDate(data.contractSignedDate || data.createdDate)} / ${formatDate(data.depositReceivedDate || '')}`, 14, 69);
+  }
 
   const detailRows = (data.zones || []).map((zone, index) => {
     const methodDisplay = getMethodDisplayName(zone.methodId, zone.methodName);
@@ -735,7 +794,7 @@ export const generateQuotationPDF = async (data: CaseData, mode: 'save' | 'previ
   });
 
   autoTable(doc, {
-    startY: 72,
+    startY: data.contractSignedDate || data.depositReceivedDate ? 78 : 72,
     head: [['區域 ZONE', '工法 METHOD', '數量 QTY', '單價 PRICE', '小計 SUBTOTAL']],
     body: detailRows.length ? detailRows : [['-', '-', '-', '-', '-']],
     theme: 'grid',
@@ -751,6 +810,13 @@ export const generateQuotationPDF = async (data: CaseData, mode: 'save' | 'previ
   });
 
   let y = ((doc as any).lastAutoTable?.finalY || 120) + 8;
+  y = ensurePageSpace(doc, y, 24);
+  doc.setFillColor(...PDF_THEME.surface);
+  doc.rect(14, y, 182, 18, 'F');
+  doc.setFontSize(9.5);
+  doc.text(`漏水症狀 / LEAK: ${data.leakSymptoms || '-'}`, 18, y + 6);
+  doc.text(`施工限制 / ACCESS: ${data.accessConstraints || data.addressNote || '-'}`, 18, y + 12);
+  y += 24;
   y = ensurePageSpace(doc, y, hasDiscountAdjustment ? 42 : 30);
 
   doc.setFillColor(...PDF_THEME.surface);
@@ -1061,6 +1127,10 @@ export const generateContractPDF = async (data: CaseData, mode: 'save' | 'previe
   const baseSubtotal = (data.zones || []).reduce((sum, zone) => sum + getZoneSubtotal(zone), 0);
   const adjustment = data.manualPriceAdjustment || 0;
   const total = data.finalPrice || (baseSubtotal + adjustment);
+  const depositRatio = normalizeDepositRatio(data.depositPercentage);
+  const finalRatio = 1 - depositRatio;
+  const depositPercent = Math.round(depositRatio * 100);
+  const finalPercent = 100 - depositPercent;
   const projectDays = getProjectDurationDays(data);
   const startDate = data.startDate ? formatDate(data.startDate) : "待雙方確認";
   const expectedEndDate = data.startDate
@@ -1073,13 +1143,15 @@ export const generateContractPDF = async (data: CaseData, mode: 'save' | 'previe
   doc.text(`${data.customerName}`, 14, y + 6);
   doc.text(`地址 / ADDRESS: ${data.address || '-'}`, 14, y + 12);
   doc.text(`電話 / PHONE: ${data.phone || '-'}`, 14, y + 18);
+  doc.text(`現場聯絡 / SITE: ${data.siteContactName || data.customerName || '-'} / ${data.siteContactPhone || data.phone || '-'}`, 14, y + 24);
 
   doc.text("乙方 (承攬) / CONTRACTOR", 110, y);
   doc.text(`${COMPANY_NAME}`, 110, y + 6);
   doc.text(`${COMPANY_ID}`, 110, y + 12);
   doc.text(`合約編號 / CONTRACT NO: ${displayId}`, 110, y + 18);
+  doc.text(`簽約日期 / SIGN DATE: ${formatDate(data.contractSignedDate || data.createdDate)}`, 110, y + 24);
 
-  y = 72;
+  y = 78;
   y = drawSectionHeader(doc, "一、工程範圍（與評估表一致） / SCOPE", y);
 
   autoTable(doc, {
@@ -1110,7 +1182,7 @@ export const generateContractPDF = async (data: CaseData, mode: 'save' | 'previe
   doc.setFontSize(10);
   y = writeWrappedText(doc, `1) 合約總價：${formatCurrency(total)}（含稅）`, 16, y + 4, 178, 5);
   y = writeWrappedText(doc, `2) 預定工期：約 ${projectDays} 天，預定開工 ${startDate}，預定完工 ${expectedEndDate}。`, 16, y, 178, 5);
-  y = writeWrappedText(doc, `3) 付款：訂金 70%（${formatCurrency(Math.round(total * 0.7))}），尾款 30%（${formatCurrency(Math.round(total * 0.3))}）。`, 16, y, 178, 5);
+  y = writeWrappedText(doc, `3) 付款：訂金 ${depositPercent}%（${formatCurrency(Math.round(total * depositRatio))}），尾款 ${finalPercent}%（${formatCurrency(Math.round(total * finalRatio))}）。`, 16, y, 178, 5);
 
   y += 4;
   y = ensurePageSpace(doc, y, 40);
@@ -1188,8 +1260,12 @@ export const generateInvoicePDF = async (data: CaseData, type: 'DEPOSIT' | 'FINA
   setupDocument(doc, titleEn, titleZh);
 
   const total = data.finalPrice;
-  const deposit = Math.round(total * 0.7);
-  const final = Math.round(total * 0.3);
+  const depositRatio = normalizeDepositRatio(data.depositPercentage);
+  const finalRatio = 1 - depositRatio;
+  const depositPercent = Math.round(depositRatio * 100);
+  const finalPercent = 100 - depositPercent;
+  const deposit = Math.round(total * depositRatio);
+  const final = Math.round(total * finalRatio);
 
   doc.setFillColor(...PDF_THEME.surface);
   doc.rect(14, 45, 182, 25, 'F');
@@ -1199,24 +1275,26 @@ export const generateInvoicePDF = async (data: CaseData, type: 'DEPOSIT' | 'FINA
   const displayId = getDisplayCaseId(data.caseId, data.customerName);
   doc.text(`案件編號 / CASE NO: ${displayId}`, 20, 62);
   doc.text(`開立日期 / DATE: ${formatDate(new Date().toISOString())}`, 120, 55);
+  doc.text(`發票抬頭 / TITLE: ${data.invoiceTitle || data.customerName}`, 120, 62);
+  doc.text(`付款日期 / PAYMENT DATE: ${formatDate(type === 'DEPOSIT' ? (data.depositReceivedDate || '') : (data.finalPaymentReceivedDate || ''))}`, 120, 69);
 
   let tableBody = [];
   if (type === 'DEPOSIT') {
     tableBody = [
       ['工程總價 / TOTAL PROJECT VALUE', formatCurrency(total)],
-      ['本次請款: 訂金 (70%) / DEPOSIT DUE', formatCurrency(deposit)],
+      [`本次請款: 訂金 (${depositPercent}%) / DEPOSIT DUE`, formatCurrency(deposit)],
       ['( 餘額待完工驗收後支付 / Balance upon completion )', formatCurrency(final)]
     ];
   } else {
     tableBody = [
       ['工程總價 / TOTAL PROJECT VALUE', formatCurrency(total)],
       ['已付訂金 / LESS: DEPOSIT PAID', `-${formatCurrency(deposit)}`],
-      ['本次請款: 尾款 (30%) / FINAL PAYMENT DUE', formatCurrency(final)]
+      [`本次請款: 尾款 (${finalPercent}%) / FINAL PAYMENT DUE`, formatCurrency(final)]
     ];
   }
 
   autoTable(doc, {
-    startY: 80,
+    startY: 86,
     head: [['項目說明 / DESCRIPTION', '金額 / AMOUNT (TWD)']],
     body: tableBody,
     theme: 'grid',
@@ -1234,10 +1312,95 @@ export const generateInvoicePDF = async (data: CaseData, type: 'DEPOSIT' | 'FINA
   doc.rect(14, bankY - 1, 182, 24, 'F');
 
   doc.setFontSize(10);
-  doc.text("銀行代碼: 822 (中國信託)", 16, bankY + 6);
-  doc.text("銀行帳號: 1234-5678-9012-3456", 16, bankY + 12);
+  doc.text(`銀行代碼: ${BANK_CODE} (${BANK_NAME})`, 16, bankY + 6);
+  doc.text(`銀行帳號: ${BANK_ACCOUNT}`, 16, bankY + 12);
   doc.text(`戶名: ${COMPANY_NAME}`, 16, bankY + 18);
+
+  if (data.paymentNote) {
+    let noteY = bankY + 28;
+    noteY = ensurePageSpace(doc, noteY, 14, 24);
+    drawSectionHeader(doc, "付款說明 / PAYMENT NOTE", noteY);
+    doc.setFontSize(9.5);
+    doc.text(data.paymentNote, 16, noteY + 10);
+  }
 
   drawFooter(doc);
   outputPDF(doc, `INVOICE_${type}_${displayId}.pdf`, mode);
+};
+
+export const generateCompletionPDF = async (data: CaseData, mode: 'save' | 'preview' = 'save') => {
+  const doc = new jsPDF();
+  await loadFont(doc);
+  setupDocument(doc, 'COMPLETION ACCEPTANCE', '完工驗收單');
+
+  const displayId = getDisplayCaseId(data.caseId, data.customerName);
+  doc.setFontSize(10);
+  doc.text(`案件編號 / CASE NO: ${displayId}`, 14, 45);
+  doc.text(`客戶名稱 / CLIENT: ${data.customerName}`, 14, 52);
+  doc.text(`工程地址 / ADDRESS: ${data.address || '-'}`, 14, 59);
+  doc.text(`驗收日期 / ACCEPTED DATE: ${formatDate(data.completionAcceptedDate || new Date().toISOString())}`, 110, 45);
+  doc.text(`現場聯絡 / SITE CONTACT: ${data.siteContactName || data.customerName || '-'}`, 110, 52);
+  doc.text(`聯絡電話 / PHONE: ${data.siteContactPhone || data.phone || '-'}`, 110, 59);
+  doc.text(`尾款入帳 / FINAL PAID: ${formatDate(data.finalPaymentReceivedDate || '')}`, 110, 66);
+
+  let y = 79;
+  y = drawSectionHeader(doc, '完工內容 / COMPLETED SCOPE', y);
+  autoTable(doc, {
+    startY: y + 2,
+    head: [['區域', '工法', '重點備註']],
+    body: (data.zones || []).map((zone, index) => [
+      `${index + 1}. ${zone.zoneName || `區域 ${index + 1}`}`,
+      getMethodDisplayName(zone.methodId, zone.methodName),
+      zone.exclusionNote || zone.leakConditionNote || zone.substrateNote || '-',
+    ]),
+    theme: 'grid',
+    styles: { fontSize: 8, cellPadding: 2.5, font: 'NotoSansTC' },
+    headStyles: { fillColor: [...PDF_THEME.headerBg], textColor: 255, font: 'NotoSansTC', fontStyle: 'bold' },
+  });
+  y = ((doc as any).lastAutoTable?.finalY || y + 40) + 8;
+  y = drawSectionHeader(doc, '驗收說明 / ACCEPTANCE NOTE', y);
+  doc.setFontSize(9.5);
+  doc.text(`1) 本次完工金額：${formatCurrency(data.formalQuotedPrice || data.finalPrice)}`, 16, y + 6);
+  doc.text(`2) 驗收備註：${data.specialNote || '依現場點交為準。'}`, 16, y + 12);
+  doc.text(`3) 尾款狀態：${data.finalPaymentReceivedDate ? `已收款 ${formatDate(data.finalPaymentReceivedDate)}` : '待收尾款'}`, 16, y + 18);
+  drawSignatureBlock(doc, y + 28, '驗收簽認 / ACCEPTANCE', '業主簽認', '施工單位簽認');
+  drawFooter(doc);
+  outputPDF(doc, `COMPLETION_${displayId}.pdf`, mode);
+};
+
+export const generateWarrantyCertificatePDF = async (data: CaseData, mode: 'save' | 'preview' = 'save') => {
+  const doc = new jsPDF();
+  await loadFont(doc);
+  setupDocument(doc, 'WARRANTY CERTIFICATE', '保固證明書');
+
+  const displayId = getDisplayCaseId(data.caseId, data.customerName);
+  doc.setFontSize(10);
+  doc.text(`案件編號 / CASE NO: ${displayId}`, 14, 45);
+  doc.text(`客戶名稱 / CLIENT: ${data.customerName}`, 14, 52);
+  doc.text(`完工日期 / COMPLETED: ${formatDate(data.completionAcceptedDate || data.createdDate)}`, 110, 45);
+  doc.text(`工程地址 / ADDRESS: ${data.address || '-'}`, 14, 59);
+  doc.text(`保固起始 / WARRANTY START: ${formatDate(data.completionAcceptedDate || data.createdDate)}`, 110, 52);
+  doc.text(`現場聯絡 / SITE CONTACT: ${data.siteContactName || data.customerName || '-'}`, 110, 59);
+
+  let y = 72;
+  y = drawSectionHeader(doc, '保固範圍 / WARRANTY COVERAGE', y);
+  (data.zones || []).forEach((zone, index) => {
+    const line = `${index + 1}) ${zone.zoneName || `區域 ${index + 1}`} / ${zone.methodName || '-'} / ${zone.warrantyType || 'leak_handled'}`;
+    doc.text(line, 16, y + 6);
+    y += 8;
+  });
+  y += 4;
+  y = drawSectionHeader(doc, '售後紀錄摘要 / SERVICE HISTORY', y);
+  const records = data.warrantyRecords || [];
+  if (records.length === 0) {
+    doc.text('目前尚無保固回訪紀錄。', 16, y + 6);
+  } else {
+    records.slice(0, 6).forEach((record, index) => {
+      doc.text(`${index + 1}) ${formatDate(record.recordedAt)} / ${record.issueSummary || '-'} / ${record.responsibility || 'warranty'}`, 16, y + 6);
+      y += 8;
+    });
+  }
+  drawSignatureBlock(doc, y + 16, '保固簽認 / WARRANTY', '業主簽認', '保固單位簽認');
+  drawFooter(doc);
+  outputPDF(doc, `WARRANTY_${displayId}.pdf`, mode);
 };

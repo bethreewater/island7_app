@@ -18,7 +18,8 @@ export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { 
 
 export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label?: string }> =
   ({ label, className = '', id, ...props }) => {
-    const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
+    const generatedId = React.useId();
+    const inputId = id || generatedId;
     return (
       <div className="flex flex-col gap-1 w-full">
         {label && <label htmlFor={inputId} className="text-[9px] font-black text-zinc-400 uppercase tracking-[0.15em] leading-none mb-1 ml-0.5 whitespace-nowrap">{label}</label>}
@@ -138,7 +139,7 @@ export const ImageUploader: React.FC<{
       <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 md:gap-3">
         {images.map((img, idx) => (
           <div key={idx} className="relative aspect-square rounded-sm overflow-hidden border border-zinc-100 group bg-zinc-50">
-            <img src={img} alt={`Log ${idx}`} className="w-full h-full object-cover" />
+            <img src={img} alt={`Uploaded photo ${idx + 1}`} loading="lazy" className="w-full h-full object-cover" />
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); removeImage(idx); }}
@@ -158,7 +159,7 @@ export const ImageUploader: React.FC<{
             {uploading ? (
               <Loader2 size={18} className="animate-spin text-zinc-400" />
             ) : (
-              <Camera size={18} className="md:size-20 group-hover:scale-110 transition-transform" />
+              <Camera size={18} className="md:w-5 md:h-5 group-hover:scale-110 transition-transform" />
             )}
             <span className="text-[7px] font-black tracking-widest uppercase">{uploading ? '...' : 'ADD'}</span>
           </button>

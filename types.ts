@@ -1,6 +1,6 @@
 
 
-export type NavigationView = 'dashboard' | 'datacenter' | 'settings' | 'map';
+export type NavigationView = 'dashboard' | 'kb' | 'datacenter' | 'settings' | 'map';
 
 export enum CaseStatus {
   // New Stages
@@ -110,8 +110,12 @@ export interface MethodItem {
 export interface ScheduleTask {
   taskId: string;
   date: string;
+  zoneId?: string;
   zoneName: string;
   taskName: string;
+  methodName?: string;
+  crewLabel?: string;
+  blockedReason?: string;
   isCompleted: boolean;
 }
 
@@ -123,12 +127,19 @@ export interface BreakPeriod {
 export interface ConstructionLog {
   id: string;
   date: string;
+  taskId?: string;
+  zoneId?: string;
+  zoneName?: string;
   weather: string;
   action: string;
   description: string;
   beforePhotos: string[];
   afterPhotos: string[];
   photos?: string[];
+  issueType?: 'normal' | 'weather_delay' | 'access_issue' | 'material_delay' | 'customer_change' | 'warranty_visit';
+  evidenceNote?: string;
+  crewLabel?: string;
+  customerSignedOff?: boolean;
   startTime?: string;
   breaks?: BreakPeriod[];  // 更新：支援多次休息紀錄
   endTime?: string;
@@ -139,6 +150,7 @@ export interface ConstructionLog {
 
 export interface ConstructionItem {
   itemId: string;
+  measurementMode?: 'area' | 'length' | 'quantity' | 'set';
   length: number;
   width: number;
   areaPing: number;
@@ -158,30 +170,72 @@ export interface Zone {
   unit: string;
   unitPrice: number;
   difficultyCoefficient: number;
+  substrateNote?: string;
+  leakConditionNote?: string;
+  exclusionNote?: string;
   items: ConstructionItem[];
+}
+
+export interface WarrantyRecord {
+  id: string;
+  zoneId?: string;
+  recordedAt: string;
+  type?: 'callback' | 'inspection' | 'repair' | 'closed';
+  issueSummary?: string;
+  causeCategory?: 'same_defect' | 'new_leak_point' | 'upstream_issue' | 'customer_damage' | 'unknown';
+  result?: string;
+  responsibility?: 'warranty' | 'chargeable' | 'monitoring';
+  nextVisitDate?: string;
+  photos?: string[];
+  note?: string;
+}
+
+export interface ChangeOrder {
+  id: string;
+  createdAt: string;
+  reason: string;
+  amount: number;
+  status?: 'draft' | 'approved';
+  approvedAt?: string;
 }
 
 export interface CaseData {
   caseId: string;
   createdDate: string;
   startDate?: string;
+  contractSignedDate?: string;
+  completionAcceptedDate?: string;
   customerName: string;
   phone: string;
+  siteContactName?: string;
+  siteContactPhone?: string;
   address?: string;           // 施工地址
   latitude?: number;          // 緯度(Lat)
   longitude?: number;         // 經度(Lng) 
   addressNote?: string;       // 地址備註（如：3樓、後棟等）
+  buildingContext?: string;
   lineId?: string;
+  leakSymptoms?: string;
+  leakSourceDiagnosis?: string;
+  accessConstraints?: string;
   status: CaseStatus;
   zones: Zone[];
   specialNote: string;
   formalQuotedPrice: number;
+  quoteVersion?: number;
   manualPriceAdjustment: number;
+  depositPercentage?: number;
+  depositReceivedDate?: string;
+  finalPaymentReceivedDate?: string;
+  invoiceTitle?: string;
+  invoiceTaxId?: string;
+  paymentNote?: string;
   finalPrice: number;
   schedule: ScheduleTask[];
   logs: ConstructionLog[];
-  warrantyRecords: any[];
-  changeOrders: any[];
+  warrantyRecords: WarrantyRecord[];
+  changeOrders: ChangeOrder[];
+  isPartial?: boolean;
 }
 
 // Material Categories
