@@ -3,6 +3,8 @@ import { BarChart3, Wallet, ShieldCheck, CalendarDays } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/InputComponents';
 import { CaseData, CaseStatus, NavigationView, normalizeCaseStatus } from '../types';
+import { getPaymentBreakdown } from '../utils/payment';
+import { getTodayString, hasOverdueWarrantyVisit } from '../utils/operations';
 
 interface OperationsReportProps {
   cases: CaseData[];
@@ -12,19 +14,25 @@ interface OperationsReportProps {
 
 export const OperationsReport: React.FC<OperationsReportProps> = ({ cases, onNavigate, onOpenCaseWithTab }) => {
   const metrics = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const totalContractValue = cases.filter((c) => normalizeCaseStatus(c.status) !== CaseStatus.ASSESSMENT).reduce((sum, c) => sum + (c.finalPrice || 0), 0);
+    const today = getTodayString();
+    const realizedCases = cases.filter((c) => normalizeCaseStatus(c.status) !== CaseStatus.ASSESSMENT);
+    const totalContractValue = realizedCases.reduce((sum, c) => sum + (c.finalPrice || 0), 0);
     const collected = cases.reduce((sum, c) => {
-      const ratio = typeof c.depositPercentage === 'number' ? c.depositPercentage : 0.7;
+      const payment = getPaymentBreakdown(c.finalPrice || 0, c.depositPercentage);
       let amount = 0;
-      if (c.depositReceivedDate) amount += (c.finalPrice || 0) * ratio;
-      if (c.finalPaymentReceivedDate) amount += (c.finalPrice || 0) * (1 - ratio);
+      if (c.depositReceivedDate) amount += payment.depositAmount;
+      if (c.finalPaymentReceivedDate) amount += payment.finalAmount;
       return sum + amount;
     }, 0);
-    const overdueWarranty = cases.filter((c) => (c.warrantyRecords || []).some((r) => r.nextVisitDate && r.nextVisitDate < today && !r.result?.trim()));
+    const overdueWarranty = cases.filter((c) => hasOverdueWarrantyVisit(c, today));
     const activeConstruction = cases.filter((c) => normalizeCaseStatus(c.status) === CaseStatus.CONSTRUCTION);
     return { totalContractValue, collected, outstanding: Math.max(totalContractValue - collected, 0), overdueWarranty, activeConstruction };
   }, [cases]);
+
+  const outstandingCases = useMemo(
+    () => cases.filter((c) => normalizeCaseStatus(c.status) !== CaseStatus.ASSESSMENT && (!c.depositReceivedDate || !c.finalPaymentReceivedDate)),
+    [cases],
+  );
 
   return (
     <Layout title="營運報表 / OPERATIONS REPORT" onNavigate={onNavigate} currentView="reports">
@@ -38,7 +46,8 @@ export const OperationsReport: React.FC<OperationsReportProps> = ({ cases, onNav
 
         <Card title="待收款案件 / OUTSTANDING CASES">
           <div className="space-y-3">
-            {cases.filter((c) => !c.finalPaymentReceivedDate || !c.depositReceivedDate).map((item) => (
+            {outstandingCases.length === 0 && <div className="text-sm text-zinc-400">目前沒有待收款案件</div>}
+            {outstandingCases.map((item) => (
               <button key={item.caseId} onClick={() => onOpenCaseWithTab?.(item.caseId, 'quote')} className="w-full text-left border border-zinc-100 rounded-sm p-4 hover:border-zinc-300">
                 <div className="font-black text-sm">{item.customerName}</div>
                 <div className="text-xs text-zinc-500 mt-1">頭期：{item.depositReceivedDate || '未收'} / 尾款：{item.finalPaymentReceivedDate || '未收'}</div>

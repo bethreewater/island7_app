@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
-import { Bell, AlertTriangle, Wallet, MapPin, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Wallet, MapPin, ShieldCheck } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/InputComponents';
-import { CaseData, CaseStatus, NavigationView, normalizeCaseStatus } from '../types';
+import { CaseData, NavigationView } from '../types';
+import { hasMissingLocation, hasPendingDeposit, hasPendingFinalPayment, hasPendingWarrantyVisit, getTodayString } from '../utils/operations';
 
 interface NotificationsProps {
   cases: CaseData[];
@@ -12,19 +13,19 @@ interface NotificationsProps {
 
 export const Notifications: React.FC<NotificationsProps> = ({ cases, onNavigate, onOpenCaseWithTab }) => {
   const alerts = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayString();
     return cases.flatMap((item) => {
       const rows: { id: string; tone: 'amber' | 'blue' | 'rose' | 'emerald'; title: string; detail: string; tab: 'eval' | 'quote' | 'warranty' }[] = [];
-      if (item.address && (typeof item.latitude !== 'number' || typeof item.longitude !== 'number')) {
+      if (hasMissingLocation(item)) {
         rows.push({ id: `${item.caseId}-loc`, tone: 'amber', title: '待補定位', detail: `${item.customerName} 尚未完成地圖定位`, tab: 'eval' });
       }
-      if (normalizeCaseStatus(item.status) !== CaseStatus.ASSESSMENT && !item.depositReceivedDate) {
+      if (hasPendingDeposit(item)) {
         rows.push({ id: `${item.caseId}-deposit`, tone: 'blue', title: '待收頭期', detail: `${item.customerName} 尚未登記頭期收款`, tab: 'quote' });
       }
-      if (normalizeCaseStatus(item.status) === CaseStatus.FINAL_PAYMENT && !item.finalPaymentReceivedDate) {
+      if (hasPendingFinalPayment(item)) {
         rows.push({ id: `${item.caseId}-final`, tone: 'emerald', title: '待收尾款', detail: `${item.customerName} 尾款尚未入帳`, tab: 'quote' });
       }
-      if ((item.warrantyRecords || []).some((record) => record.nextVisitDate && record.nextVisitDate <= today && !record.result?.trim())) {
+      if (hasPendingWarrantyVisit(item) && (item.warrantyRecords || []).some((record) => record.nextVisitDate && record.nextVisitDate <= today && !record.result?.trim())) {
         rows.push({ id: `${item.caseId}-warranty`, tone: 'rose', title: '保固待回訪', detail: `${item.customerName} 有保固回訪待處理`, tab: 'warranty' });
       }
       return rows.map((row) => ({ ...row, caseId: item.caseId }));

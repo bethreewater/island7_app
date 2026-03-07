@@ -16,6 +16,10 @@ import { getInitialCase, saveCase, deleteCase, getCaseDetails } from '../service
 import { Button, Card, Input } from '../components/InputComponents';
 import { Layout } from '../components/Layout';
 import { TodayTasks } from '../components/TodayTasks';
+import { StatCard } from '../components/dashboard/StatCard';
+import { QuickActionButton } from '../components/dashboard/QuickActionButton';
+import { QueueCard } from '../components/dashboard/QueueCard';
+import { buildOperationQueues, getTodayString, hasMissingLocation, hasOverdueWarrantyVisit, hasPendingDeposit, hasPendingFinalPayment, hasPendingWarrantyVisit } from '../utils/operations';
 
 interface DashboardProps {
   cases: CaseData[];
@@ -57,33 +61,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
     };
   }, [cases]);
 
-  const operationQueues = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const missingLocation = cases.filter((c) => Boolean(c.address?.trim()) && (typeof c.latitude !== 'number' || typeof c.longitude !== 'number'));
-    const pendingDeposit = cases.filter((c) => {
-      const status = normalizeCaseStatus(c.status);
-      return status !== CaseStatus.ASSESSMENT && !c.depositReceivedDate;
-    });
-    const pendingFinalPayment = cases.filter((c) => normalizeCaseStatus(c.status) === CaseStatus.FINAL_PAYMENT && !c.finalPaymentReceivedDate);
-    const pendingWarrantyVisit = cases.filter((c) =>
-      (c.warrantyRecords || []).some((record) => record.nextVisitDate && !record.result?.trim())
-    );
-    const overdueWarrantyVisit = cases.filter((c) =>
-      (c.warrantyRecords || []).some((record) => record.nextVisitDate && record.nextVisitDate < today && !record.result?.trim())
-    );
-    const upcomingWarrantyVisit = cases.filter((c) =>
-      (c.warrantyRecords || []).some((record) => record.nextVisitDate && record.nextVisitDate >= today && record.nextVisitDate <= nextWeek && !record.result?.trim())
-    );
-
-    return { missingLocation, pendingDeposit, pendingFinalPayment, pendingWarrantyVisit, overdueWarrantyVisit, upcomingWarrantyVisit };
-  }, [cases]);
+  const operationQueues = useMemo(() => buildOperationQueues(cases), [cases]);
 
   const exportOperationalReport = useCallback(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayString();
     const rows = cases.map((item) => {
-      const hasPendingWarranty = (item.warrantyRecords || []).some((record) => record.nextVisitDate && !record.result?.trim());
-      const hasOverdueWarranty = (item.warrantyRecords || []).some((record) => record.nextVisitDate && record.nextVisitDate < today && !record.result?.trim());
+      const hasPendingWarranty = hasPendingWarrantyVisit(item);
+      const hasOverdueWarranty = hasOverdueWarrantyVisit(item, today);
       return [
         item.caseId,
         item.customerName,
@@ -247,12 +231,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
         }
 
         if (opsFilter !== 'all') {
-          const today = new Date().toISOString().slice(0, 10);
+          const today = getTodayString();
           const matchesOps =
-            (opsFilter === 'missing_location' && Boolean(c.address?.trim()) && (typeof c.latitude !== 'number' || typeof c.longitude !== 'number')) ||
-            (opsFilter === 'pending_deposit' && normalizeCaseStatus(c.status) !== CaseStatus.ASSESSMENT && !c.depositReceivedDate) ||
-            (opsFilter === 'pending_final' && normalizeCaseStatus(c.status) === CaseStatus.FINAL_PAYMENT && !c.finalPaymentReceivedDate) ||
-            (opsFilter === 'pending_warranty' && (c.warrantyRecords || []).some((record) => record.nextVisitDate && record.nextVisitDate <= today && !record.result?.trim()));
+            (opsFilter === 'missing_location' && hasMissingLocation(c)) ||
+            (opsFilter === 'pending_deposit' && hasPendingDeposit(c)) ||
+            (opsFilter === 'pending_final' && hasPendingFinalPayment(c)) ||
+            (opsFilter === 'pending_warranty' && hasPendingWarrantyVisit(c) && !hasOverdueWarrantyVisit(c, today) ? true : hasPendingWarrantyVisit(c));
           if (!matchesOps) return false;
         }
 
@@ -532,18 +516,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
                     <MapPin className="w-2 h-2 md:w-2.5 md:h-2.5" /> <span className="truncate">{c.address || '未填寫地址'}</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5 mt-2">
-                    {(typeof c.latitude !== 'number' || typeof c.longitude !== 'number') && c.address && (
+                    {hasMissingLocation(c) && (
                       <span className="text-[8px] md:text-[9px] px-2 py-0.5 rounded-sm border bg-amber-50 text-amber-700 border-amber-200 font-black uppercase tracking-widest">待定位</span>
                     )}
-                    {!c.depositReceivedDate && !isAssessmentStatus(c.status) && (
+                    {hasPendingDeposit(c) && (
                       <span className="text-[8px] md:text-[9px] px-2 py-0.5 rounded-sm border bg-blue-50 text-blue-700 border-blue-200 font-black uppercase tracking-widest">待頭期</span>
                     )}
-                    {!c.finalPaymentReceivedDate && normalizeCaseStatus(c.status) === CaseStatus.FINAL_PAYMENT && (
+                    {hasPendingFinalPayment(c) && (
                       <span className="text-[8px] md:text-[9px] px-2 py-0.5 rounded-sm border bg-emerald-50 text-emerald-700 border-emerald-200 font-black uppercase tracking-widest">待尾款</span>
                     )}
-                    {(c.warrantyRecords || []).some((record) => record.nextVisitDate && !record.result?.trim()) && (
+                    {hasPendingWarrantyVisit(c) && (
                       <span className={`text-[8px] md:text-[9px] px-2 py-0.5 rounded-sm border font-black uppercase tracking-widest ${
-                        (c.warrantyRecords || []).some((record) => record.nextVisitDate && record.nextVisitDate < new Date().toISOString().slice(0, 10) && !record.result?.trim())
+                        hasOverdueWarrantyVisit(c, getTodayString())
                           ? 'bg-rose-50 text-rose-700 border-rose-200'
                           : 'bg-violet-50 text-violet-700 border-violet-200'
                       }`}>待回訪</span>
@@ -639,75 +623,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
     </Layout>
   );
 };
-
-const StatCard = React.memo(({ icon, label, value, dark = false }: { icon: React.ReactNode, label: string, value: string | number, dark?: boolean }) => (
-  <div className={`${dark ? 'bg-zinc-950 text-white border-zinc-900 shadow-md' : 'bg-white text-zinc-950 border-zinc-100'} p-3 md:p-5 rounded-sm border flex flex-col justify-between h-20 md:h-32 transition-all`}>
-    <div className={`text-[7px] md:text-[9px] font-black flex items-center gap-1 md:gap-2 tracking-widest uppercase whitespace-nowrap leading-none ${dark ? 'text-zinc-500' : 'text-zinc-400'}`}>
-      {icon} {label.split(' / ')[0]}
-    </div>
-    <div className="text-xl md:text-3xl font-black tracking-tighter leading-none whitespace-nowrap">{value}</div>
-  </div>
-));
-
-const QuickActionButton = React.memo(({ onClick, icon, title, subtitle }: { onClick: () => void, icon: React.ReactNode, title: string, subtitle: string }) => (
-  <button onClick={onClick} className="group relative h-20 md:h-32 bg-white border border-zinc-200 rounded-sm p-4 md:p-6 text-left hover:border-zinc-950 transition-all shadow-sm active:scale-95 overflow-hidden">
-    <div className="absolute top-4 right-4 text-zinc-100 md:group-hover:text-zinc-950 transition-all">{icon}</div>
-    <div className="text-[7px] md:text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-0.5 leading-none">{title}</div>
-    <div className="text-sm md:text-lg font-black text-zinc-950 tracking-tighter uppercase whitespace-nowrap leading-none">{subtitle}</div>
-  </button>
-));
-
-const QueueCard = React.memo(({
-  icon,
-  title,
-  count,
-  helper,
-  items,
-  onOpen,
-  fallbackOpen,
-  targetTab,
-  onFilter,
-  tone,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  count: number;
-  helper: string;
-  items: CaseData[];
-  onOpen?: (caseId: string, targetTab?: 'eval' | 'log' | 'quote' | 'mats' | 'schedule' | 'warranty') => void;
-  fallbackOpen: (caseId: string) => void;
-  targetTab?: 'eval' | 'log' | 'quote' | 'mats' | 'schedule' | 'warranty';
-  onFilter: () => void;
-  tone: 'amber' | 'blue' | 'emerald' | 'violet' | 'rose';
-}) => {
-  const toneClass = {
-    amber: 'border-amber-200 bg-amber-50/50 text-amber-700',
-    blue: 'border-blue-200 bg-blue-50/50 text-blue-700',
-    emerald: 'border-emerald-200 bg-emerald-50/50 text-emerald-700',
-    violet: 'border-violet-200 bg-violet-50/50 text-violet-700',
-    rose: 'border-rose-200 bg-rose-50/50 text-rose-700',
-  }[tone];
-
-  return (
-    <div className={`border rounded-sm p-4 ${toneClass}`}>
-      <button onClick={onFilter} className="w-full flex items-center justify-between gap-3 text-left">
-        <div className="text-[9px] font-black uppercase tracking-widest flex items-center gap-2">{icon} {title}</div>
-        <div className="text-2xl font-black">{count}</div>
-      </button>
-      <div className="text-xs mt-2 opacity-80">{helper}</div>
-      <div className="mt-3 space-y-2">
-        {items.slice(0, 3).map((item) => (
-          <button key={item.caseId} onClick={() => onOpen ? onOpen(item.caseId, targetTab) : fallbackOpen(item.caseId)} className="w-full text-left bg-white/80 hover:bg-white border border-current/10 rounded-sm px-3 py-2 transition-colors">
-            <div className="text-sm font-black text-zinc-950 truncate">{item.customerName}</div>
-            <div className="text-[10px] text-zinc-500 truncate">{item.address || item.buildingContext || '待補資訊'}</div>
-          </button>
-        ))}
-        {count === 0 && <div className="text-xs opacity-60 py-2">目前沒有待處理項目</div>}
-        {count > 3 && <div className="text-[10px] font-black opacity-70">+{count - 3} 筆待處理</div>}
-      </div>
-    </div>
-  );
-});
 
 type InputWithIconProps = {
   icon: React.ReactNode;

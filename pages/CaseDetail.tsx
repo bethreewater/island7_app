@@ -10,13 +10,15 @@ import { CaseData, MethodItem, ServiceCategory, CaseStatus, STATUS_LABELS, Sched
 import { getMethods, saveCase, formalizeCase, getCaseDetails } from '../services/storageService';
 import { Button, Card, Input, ImageUploader } from '../components/InputComponents';
 import { Layout } from '../components/Layout';
+import { getPaymentBreakdown, normalizeDepositRatio } from '../utils/payment';
 
 // Modular Components
 import { MaterialList } from '../components/case-detail/MaterialList';
 import { ProjectCalendar } from '../components/case-detail/ProjectCalendar';
 import { ConstructionLogTab } from '../components/case-detail/ConstructionLogTab';
-import { ExportButton } from '../components/case-detail/ExportButton';
 import { ZoneCard } from '../components/case-detail/ZoneCard';
+import { CaseCommercialTab } from '../components/case-detail/CaseCommercialTab';
+import { CaseWarrantyTab } from '../components/case-detail/CaseWarrantyTab';
 
 const STATUS_ORDER = [
   CaseStatus.ASSESSMENT,
@@ -230,7 +232,7 @@ export const CaseDetail: React.FC<{
     );
     const updatedData = {
       ...newData,
-      depositPercentage: typeof newData.depositPercentage === 'number' ? Math.max(0.05, Math.min(0.95, newData.depositPercentage)) : 0.7,
+      depositPercentage: normalizeDepositRatio(newData.depositPercentage),
       finalPrice: baseTotal + (newData.manualPriceAdjustment || 0),
     };
 
@@ -275,10 +277,10 @@ export const CaseDetail: React.FC<{
 
   const liveFinalPrice = calculatedTotal + (localData.manualPriceAdjustment || 0);
   const frozenQuotePrice = localData.formalQuotedPrice || liveFinalPrice;
-  const depositRatio = typeof localData.depositPercentage === 'number' ? localData.depositPercentage : 0.7;
-  const finalRatio = 1 - depositRatio;
-  const depositAmount = Math.round(frozenQuotePrice * depositRatio);
-  const finalPaymentAmount = Math.round(frozenQuotePrice * finalRatio);
+  const { depositRatio, finalRatio, depositAmount, finalAmount: finalPaymentAmount, depositPercent, finalPercent } = useMemo(
+    () => getPaymentBreakdown(frozenQuotePrice, localData.depositPercentage),
+    [frozenQuotePrice, localData.depositPercentage]
+  );
   const activeWarrantyCount = (localData.warrantyRecords || []).filter((item) => item.responsibility !== 'chargeable').length;
   const pendingWarrantyCount = (localData.warrantyRecords || []).filter((item) => item.nextVisitDate && !item.result?.trim()).length;
   const overdueWarrantyCount = (localData.warrantyRecords || []).filter((item) => item.nextVisitDate && item.nextVisitDate < new Date().toISOString().slice(0, 10) && !item.result?.trim()).length;
@@ -650,179 +652,21 @@ export const CaseDetail: React.FC<{
 
         {/* TAB 2: QUOTATION */}
         {activeTab === 'quote' && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-right duration-300">
-            <Card title="商務控制 / COMMERCIAL CONTROL">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="報價版本 / QUOTE VERSION" type="number" value={localData.quoteVersion || 1} onChange={(e) => handleUpdate({ ...localData, quoteVersion: parseInt(e.target.value, 10) || 1 })} />
-                <Input label="簽約日期 / CONTRACT SIGNED" type="date" value={localData.contractSignedDate || ''} onChange={(e) => handleUpdate({ ...localData, contractSignedDate: e.target.value })} />
-                <Input label="發票抬頭 / INVOICE TITLE" value={localData.invoiceTitle || ''} onChange={(e) => handleUpdate({ ...localData, invoiceTitle: e.target.value })} />
-                <Input label="統一編號 / TAX ID" value={localData.invoiceTaxId || ''} onChange={(e) => handleUpdate({ ...localData, invoiceTaxId: e.target.value })} />
-                <Input label="頭期比例 % / DEPOSIT %" type="number" value={Math.round(depositRatio * 100)} onChange={(e) => handleUpdate({ ...localData, depositPercentage: (parseInt(e.target.value, 10) || 0) / 100 })} />
-                <Input label="收到頭期日 / DEPOSIT RECEIVED" type="date" value={localData.depositReceivedDate || ''} onChange={(e) => handleUpdate({ ...localData, depositReceivedDate: e.target.value, status: e.target.value ? CaseStatus.DEPOSIT_RECEIVED : localData.status })} />
-                <Input label="收到尾款日 / FINAL RECEIVED" type="date" value={localData.finalPaymentReceivedDate || ''} onChange={(e) => handleUpdate({ ...localData, finalPaymentReceivedDate: e.target.value })} />
-              </div>
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-2">
-                <Button
-                  variant={localData.depositReceivedDate ? 'outline' : 'primary'}
-                  onClick={() => handleUpdate({
-                    ...localData,
-                    depositReceivedDate: localData.depositReceivedDate || new Date().toISOString().slice(0, 10),
-                    status: normalizeCaseStatus(localData.status) === CaseStatus.ASSESSMENT ? CaseStatus.DEPOSIT_RECEIVED : localData.status,
-                  })}
-                >
-                  {localData.depositReceivedDate ? '已記頭期' : '登記頭期'}
-                </Button>
-                <Button
-                  variant={normalizeCaseStatus(localData.status) === CaseStatus.PLANNING ? 'primary' : 'outline'}
-                  onClick={() => handleUpdate({ ...localData, status: CaseStatus.PLANNING })}
-                >
-                  轉備料/規劃
-                </Button>
-                <Button
-                  variant={normalizeCaseStatus(localData.status) === CaseStatus.FINAL_PAYMENT && !localData.finalPaymentReceivedDate ? 'primary' : 'outline'}
-                  onClick={() => handleUpdate({ ...localData, status: CaseStatus.FINAL_PAYMENT })}
-                >
-                  發起尾款
-                </Button>
-                <Button
-                  variant={localData.finalPaymentReceivedDate ? 'outline' : 'primary'}
-                  onClick={() => handleUpdate({
-                    ...localData,
-                    finalPaymentReceivedDate: localData.finalPaymentReceivedDate || new Date().toISOString().slice(0, 10),
-                    status: CaseStatus.COMPLETED,
-                    completionAcceptedDate: localData.completionAcceptedDate || new Date().toISOString().slice(0, 10),
-                  })}
-                >
-                  {localData.finalPaymentReceivedDate ? '已記尾款' : '尾款入帳'}
-                </Button>
-              </div>
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="border border-zinc-100 bg-zinc-50 rounded-sm p-4">
-                  <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">頭期 {Math.round(depositRatio * 100)}%</div>
-                  <div className="text-xl font-black mt-2">${depositAmount.toLocaleString()}</div>
-                </div>
-                <div className="border border-zinc-100 bg-zinc-50 rounded-sm p-4">
-                  <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">尾款 {Math.round(finalRatio * 100)}%</div>
-                  <div className="text-xl font-black mt-2">${finalPaymentAmount.toLocaleString()}</div>
-                </div>
-                <div className="border border-zinc-100 bg-zinc-50 rounded-sm p-4">
-                  <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">目前凍結報價</div>
-                  <div className="text-xl font-black mt-2">${frozenQuotePrice.toLocaleString()}</div>
-                </div>
-              </div>
-              <div className="mt-4 space-y-1">
-                <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">收款/請款備註 / PAYMENT NOTE</label>
-                <textarea
-                  className="w-full min-h-24 border border-zinc-200 rounded-sm px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-2 font-medium"
-                  value={localData.paymentNote || ''}
-                  onChange={(e) => setLocalData({ ...latestDataRef.current, paymentNote: e.target.value })}
-                  onBlur={(e) => handleUpdate({ ...latestDataRef.current, paymentNote: e.target.value })}
-                  placeholder="例：頭期款簽約當日現金收、尾款驗收後三日內匯款"
-                />
-              </div>
-            </Card>
-
-            <Card title="最終報價結算 / QUOTATION">
-              <div className="space-y-6">
-                <div className="flex justify-between text-[11px] font-black text-zinc-400 uppercase bg-zinc-50 px-4 py-3 border border-zinc-100">
-                  <span>BASE VALUATION / 系統估值</span>
-                  <span className="text-zinc-950 text-sm font-black">${calculatedTotal.toLocaleString()}</span>
-                </div>
-                <Input label="手動調整 (折讓或補償) / ADJUSTMENT" type="number" value={localData.manualPriceAdjustment || ''} onChange={e => handleUpdate({ ...localData, manualPriceAdjustment: parseInt(e.target.value) || 0 })} />
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" onClick={() => handleUpdate({ ...localData, formalQuotedPrice: liveFinalPrice })}>凍結為正式報價 / FREEZE QUOTE</Button>
-                  <div className="text-xs text-zinc-500">正式報價：${frozenQuotePrice.toLocaleString()}</div>
-                </div>
-                <div className="flex justify-between items-center pt-6 border-t border-zinc-950">
-                  <div className="text-[10px] font-black text-zinc-400 uppercase">FINAL PRICE / 總報價</div>
-                  <span className="text-3xl font-black text-zinc-950">${liveFinalPrice.toLocaleString()}</span>
-                </div>
-              </div>
-            </Card>
-
-            <Card title="追加減工程 / CHANGE ORDERS">
-              <div className="space-y-3">
-                {(localData.changeOrders || []).length === 0 && <div className="text-sm text-zinc-400">尚無追加減紀錄</div>}
-                {(localData.changeOrders || []).map((item) => (
-                  <div key={item.id} className="border border-zinc-100 rounded-sm p-4 flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
-                    <Input label="日期" type="date" value={item.createdAt} onChange={(e) => handleUpdate({ ...localData, changeOrders: localData.changeOrders.map((entry) => entry.id === item.id ? { ...entry, createdAt: e.target.value } : entry) })} />
-                    <Input label="原因" value={item.reason} onChange={(e) => handleUpdate({ ...localData, changeOrders: localData.changeOrders.map((entry) => entry.id === item.id ? { ...entry, reason: e.target.value } : entry) })} />
-                    <Input label="金額" type="number" value={item.amount} onChange={(e) => handleUpdate({ ...localData, changeOrders: localData.changeOrders.map((entry) => entry.id === item.id ? { ...entry, amount: parseInt(e.target.value, 10) || 0 } : entry) })} />
-                    <Button variant={item.status === 'approved' ? 'primary' : 'outline'} onClick={() => handleUpdate({ ...localData, changeOrders: localData.changeOrders.map((entry) => entry.id === item.id ? { ...entry, status: entry.status === 'approved' ? 'draft' : 'approved', approvedAt: entry.status === 'approved' ? undefined : new Date().toISOString().slice(0, 10) } : entry) })}>{item.status === 'approved' ? '已核准' : '待核准'}</Button>
-                    <Button variant="danger" onClick={() => handleUpdate({ ...localData, changeOrders: localData.changeOrders.filter((entry) => entry.id !== item.id) })}>刪除</Button>
-                  </div>
-                ))}
-                <Button variant="outline" onClick={() => handleUpdate({ ...localData, changeOrders: [...(localData.changeOrders || []), { id: `CO-${Date.now()}`, createdAt: new Date().toISOString().slice(0, 10), reason: '', amount: 0, status: 'draft' as ChangeOrder['status'] }] })}><Plus size={14} /> 新增追加減</Button>
-              </div>
-            </Card>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <ExportButton
-                onClick={async () => {
-                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
-                  const { generateEvaluationPDF } = await getPDFService();
-                  return generateEvaluationPDF(realParams, 'preview');
-                }}
-                icon={<Eye size={20} />}
-                label="預覽評估 / EVAL"
-              />
-              <ExportButton
-                onClick={async () => {
-                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
-                  const { generateQuotationPDF } = await getPDFService();
-                  return generateQuotationPDF(realParams, 'preview');
-                }}
-                icon={<Eye size={20} />}
-                label="預覽報價 / QUOTE"
-              />
-              <ExportButton
-                onClick={async () => {
-                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
-                  const { generateContractPDF } = await getPDFService();
-                  return generateContractPDF(realParams, 'preview');
-                }}
-                icon={<Eye size={20} />}
-                label="預覽合約 / CONTRACT"
-              />
-              <ExportButton
-                onClick={async () => {
-                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
-                  const { generateInvoicePDF } = await getPDFService();
-                  return generateInvoicePDF(realParams, 'DEPOSIT', 'preview');
-                }}
-                icon={<Eye size={20} />}
-                label="預覽頭期 / DEPOSIT"
-              />
-              <ExportButton
-                onClick={async () => {
-                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
-                  const { generateInvoicePDF } = await getPDFService();
-                  return generateInvoicePDF(realParams, 'FINAL', 'preview');
-                }}
-                icon={<Eye size={20} />}
-                label="預覽尾款 / FINAL"
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <ExportButton
-                onClick={async () => {
-                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
-                  const { generateCompletionPDF } = await getPDFService();
-                  return generateCompletionPDF(realParams, 'preview');
-                }}
-                icon={<Eye size={20} />}
-                label="預覽完工 / COMPLETION"
-              />
-              <ExportButton
-                onClick={async () => {
-                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
-                  const { generateWarrantyCertificatePDF } = await getPDFService();
-                  return generateWarrantyCertificatePDF(realParams, 'preview');
-                }}
-                icon={<Eye size={20} />}
-                label="預覽保固 / WARRANTY"
-              />
-            </div>
-          </div>
+          <CaseCommercialTab
+            localData={localData}
+            calculatedTotal={calculatedTotal}
+            liveFinalPrice={liveFinalPrice}
+            frozenQuotePrice={frozenQuotePrice}
+            depositRatio={depositRatio}
+            depositAmount={depositAmount}
+            finalPaymentAmount={finalPaymentAmount}
+            depositPercent={depositPercent}
+            finalPercent={finalPercent}
+            setLocalData={setLocalData}
+            latestDataRef={latestDataRef}
+            handleUpdate={handleUpdate}
+            getPDFService={getPDFService}
+          />
         )}
 
         {/* TAB 3: MATERIALS (New Dedicated Tab) */}
@@ -941,127 +785,17 @@ export const CaseDetail: React.FC<{
 
         {/* TAB 6: WARRANTY */}
         {activeTab === 'warranty' && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-right duration-300">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white border border-zinc-100 rounded-sm p-4">
-                <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">保固紀錄</div>
-                <div className="text-2xl font-black mt-2">{localData.warrantyRecords.length}</div>
-              </div>
-              <div className="bg-white border border-zinc-100 rounded-sm p-4">
-                <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">保內/觀察中</div>
-                <div className="text-2xl font-black mt-2">{activeWarrantyCount}</div>
-              </div>
-              <div className="bg-white border border-zinc-100 rounded-sm p-4">
-                <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">待回訪</div>
-                <div className="text-2xl font-black mt-2">{pendingWarrantyCount}</div>
-              </div>
-              <div className={`border rounded-sm p-4 ${overdueWarrantyCount > 0 ? 'bg-rose-50 border-rose-200' : 'bg-white border-zinc-100'}`}>
-                <div className={`text-[9px] font-black uppercase tracking-widest ${overdueWarrantyCount > 0 ? 'text-rose-500' : 'text-zinc-400'}`}>已逾期</div>
-                <div className="text-2xl font-black mt-2">{overdueWarrantyCount}</div>
-              </div>
-            </div>
-
-            <Card title="保固快捷 / WARRANTY QUICK ACTIONS">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="border border-zinc-100 rounded-sm p-4 bg-zinc-50">
-                  <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">完工日期</div>
-                  <div className="text-base font-black mt-2">{localData.completionAcceptedDate ? new Date(localData.completionAcceptedDate).toLocaleDateString('zh-TW') : '未填寫'}</div>
-                </div>
-                <div className="border border-zinc-100 rounded-sm p-4 bg-zinc-50">
-                  <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">保固狀態</div>
-                  <div className="text-base font-black mt-2">{normalizeCaseStatus(localData.status) === CaseStatus.WARRANTY ? '保固進行中' : '尚未切入保固'}</div>
-                </div>
-                <div className="border border-zinc-100 rounded-sm p-4 bg-zinc-50">
-                  <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">最近回訪</div>
-                  <div className="text-base font-black mt-2">{localData.warrantyRecords[0]?.recordedAt ? new Date(localData.warrantyRecords[0].recordedAt).toLocaleDateString('zh-TW') : '尚無紀錄'}</div>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-                <ExportButton
-                  onClick={async () => {
-                    const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
-                    const { generateCompletionPDF } = await getPDFService();
-                    return generateCompletionPDF(realParams, 'preview');
-                  }}
-                  icon={<Eye size={18} />}
-                  label="驗收單 / COMPLETION"
-                />
-                <ExportButton
-                  onClick={async () => {
-                    const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
-                    const { generateWarrantyCertificatePDF } = await getPDFService();
-                    return generateWarrantyCertificatePDF(realParams, 'preview');
-                  }}
-                  icon={<Eye size={18} />}
-                  label="保固書 / WARRANTY"
-                />
-              </div>
-            </Card>
-
-            <Card title="保固紀錄 / WARRANTY RECORD">
-              <div className="space-y-4">
-                {(localData.warrantyRecords || []).length === 0 && (
-                  <div className="text-center py-10 text-zinc-400 text-sm font-bold">尚未建立保固案件</div>
-                )}
-                {(localData.warrantyRecords || []).map((record) => {
-                  const isOverdue = Boolean(record.nextVisitDate && record.nextVisitDate < new Date().toISOString().slice(0, 10) && !record.result?.trim());
-                  return (
-                  <div key={record.id} className={`border rounded-sm p-4 space-y-3 ${isOverdue ? 'border-rose-200 bg-rose-50/40' : 'border-zinc-100'}`}>
-                    {isOverdue && <div className="text-[10px] font-black text-rose-600 uppercase tracking-widest">回訪逾期 / OVERDUE</div>}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <Input label="紀錄日期" type="date" value={record.recordedAt} onChange={(e) => handleUpdate({ ...localData, warrantyRecords: localData.warrantyRecords.map((entry) => entry.id === record.id ? { ...entry, recordedAt: e.target.value } : entry) })} />
-                      <Input label="回訪日期" type="date" value={record.nextVisitDate || ''} onChange={(e) => handleUpdate({ ...localData, warrantyRecords: localData.warrantyRecords.map((entry) => entry.id === record.id ? { ...entry, nextVisitDate: e.target.value } : entry) })} />
-                      <Input label="區域 ID / ZONE" value={record.zoneId || ''} onChange={(e) => handleUpdate({ ...localData, warrantyRecords: localData.warrantyRecords.map((entry) => entry.id === record.id ? { ...entry, zoneId: e.target.value } : entry) })} />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">類型</label>
-                      <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">責任歸屬</label>
-                      <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">原因分類</label>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <select className="border border-zinc-200 rounded-sm px-3 py-2" value={record.type || 'callback'} onChange={(e) => handleUpdate({ ...localData, warrantyRecords: localData.warrantyRecords.map((entry) => entry.id === record.id ? { ...entry, type: e.target.value as WarrantyRecord['type'] } : entry) })}>
-                        <option value="callback">客訴回報</option>
-                        <option value="inspection">現勘複查</option>
-                        <option value="repair">保固修補</option>
-                        <option value="closed">結案</option>
-                      </select>
-                      <select className="border border-zinc-200 rounded-sm px-3 py-2" value={record.responsibility || 'warranty'} onChange={(e) => handleUpdate({ ...localData, warrantyRecords: localData.warrantyRecords.map((entry) => entry.id === record.id ? { ...entry, responsibility: e.target.value as WarrantyRecord['responsibility'] } : entry) })}>
-                        <option value="warranty">保固處理</option>
-                        <option value="chargeable">保外計價</option>
-                        <option value="monitoring">觀察追蹤</option>
-                      </select>
-                      <select className="border border-zinc-200 rounded-sm px-3 py-2" value={record.causeCategory || 'unknown'} onChange={(e) => handleUpdate({ ...localData, warrantyRecords: localData.warrantyRecords.map((entry) => entry.id === record.id ? { ...entry, causeCategory: e.target.value as WarrantyRecord['causeCategory'] } : entry) })}>
-                        <option value="same_defect">同一缺失</option>
-                        <option value="new_leak_point">新漏點</option>
-                        <option value="upstream_issue">上游漏水源</option>
-                        <option value="customer_damage">人為/第三方</option>
-                        <option value="unknown">待判定</option>
-                      </select>
-                    </div>
-                    <Input label="問題摘要 / ISSUE SUMMARY" value={record.issueSummary || ''} onChange={(e) => handleUpdate({ ...localData, warrantyRecords: localData.warrantyRecords.map((entry) => entry.id === record.id ? { ...entry, issueSummary: e.target.value } : entry) })} />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">處理結果 / RESULT</label>
-                        <textarea className="w-full min-h-24 border border-zinc-200 rounded-sm px-3 py-2" value={record.result || ''} onChange={(e) => handleUpdate({ ...localData, warrantyRecords: localData.warrantyRecords.map((entry) => entry.id === record.id ? { ...entry, result: e.target.value } : entry) })} />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">備註 / NOTE</label>
-                        <textarea className="w-full min-h-24 border border-zinc-200 rounded-sm px-3 py-2" value={record.note || ''} onChange={(e) => handleUpdate({ ...localData, warrantyRecords: localData.warrantyRecords.map((entry) => entry.id === record.id ? { ...entry, note: e.target.value } : entry) })} />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">回訪照片 / PHOTOS</label>
-                      <ImageUploader images={record.photos || []} onImagesChange={(imgs) => handleUpdate({ ...localData, warrantyRecords: localData.warrantyRecords.map((entry) => entry.id === record.id ? { ...entry, photos: imgs } : entry) })} maxImages={4} />
-                    </div>
-                    <div className="flex justify-end">
-                      <Button variant="danger" onClick={() => handleUpdate({ ...localData, warrantyRecords: localData.warrantyRecords.filter((entry) => entry.id !== record.id) })}>刪除紀錄</Button>
-                    </div>
-                  </div>
-                )})}
-                <Button variant="outline" onClick={() => handleUpdate({ ...localData, warrantyRecords: [...(localData.warrantyRecords || []), { id: `WR-${Date.now()}`, recordedAt: new Date().toISOString().slice(0, 10), type: 'callback', responsibility: 'warranty', causeCategory: 'unknown', issueSummary: '', result: '', note: '', photos: [] }] })}><Plus size={14} /> 新增保固紀錄</Button>
-              </div>
-            </Card>
-          </div>
+          <CaseWarrantyTab
+            localData={localData}
+            liveFinalPrice={liveFinalPrice}
+            frozenQuotePrice={frozenQuotePrice}
+            depositRatio={depositRatio}
+            activeWarrantyCount={activeWarrantyCount}
+            pendingWarrantyCount={pendingWarrantyCount}
+            overdueWarrantyCount={overdueWarrantyCount}
+            handleUpdate={handleUpdate}
+            getPDFService={getPDFService}
+          />
         )}
       </div>
 
