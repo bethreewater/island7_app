@@ -22,9 +22,9 @@
 
 ## 建議下次刪或重構
 
-- `pages/CaseDetail.tsx`: 優先拆出報價收款、保固追蹤、現場摘要三塊，降低單檔維護成本。
+- `pages/CaseDetail.tsx`: 已拆出商務與保固區塊，後續若再重構，優先整理現場評估資料更新與 zone 編輯流程。
 - `pages/Dashboard.tsx`: 可再拆出篩選列、案件列表、建立/編輯案件 modal。
-- `services/pdfService.ts`: 可再分成 `quote`、`completion`、`warranty` 三組生成器，避免單檔持續膨脹。
+- `services/pdf/`: 已完成模組化，後續若再整理，優先補 shared schema 與版面測試，而不是再拆更多檔。
 - `components/Layout.tsx`: 若通知與報表將長期存在，可補正式導覽入口，不要只靠 Dashboard 快捷鍵進入。
 - `supabase/functions/delete-case-assets/`: 若短期不部署 Edge Function，可改標記為待啟用模組，避免被誤認為已上線功能。
 

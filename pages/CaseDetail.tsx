@@ -270,6 +270,18 @@ export const CaseDetail: React.FC<{
     onBack();
   }, [onBack, onUpdate]);
 
+  const patchDraft = useCallback((patch: Partial<CaseData>) => {
+    setLocalData({ ...latestDataRef.current, ...patch });
+  }, []);
+
+  const patchCase = useCallback((patch: Partial<CaseData>) => {
+    handleUpdate({ ...latestDataRef.current, ...patch });
+  }, [handleUpdate]);
+
+  const replaceZones = useCallback((zones: CaseData['zones']) => {
+    patchCase({ zones });
+  }, [patchCase]);
+
   const calculatedTotal = useMemo(() => {
     if (!localData.zones) return 0;
     return localData.zones.reduce((sum, zone) => sum + (zone.items || []).reduce((zSum, item) => zSum + (item.itemPrice || 0), 0), 0);
@@ -347,11 +359,11 @@ export const CaseDetail: React.FC<{
       }));
 
     const mergedLogs = [...autoLogs, ...(localData.logs || [])].sort((a, b) => b.date.localeCompare(a.date));
-    handleUpdate({ ...localData, schedule: newSchedule, logs: mergedLogs });
+    patchCase({ schedule: newSchedule, logs: mergedLogs });
 
     const logMsg = autoLogs.length > 0 ? `，同步 ${autoLogs.length} 筆日誌` : '';
     toast.success(`排程 ${newSchedule.length} 筆已產出${logMsg}`, { icon: '📅' });
-  }, [localData, methods, handleUpdate]);
+  }, [localData, methods, patchCase]);
 
 
   const handleStatusChange = async (newStatus: CaseStatus) => {
@@ -366,8 +378,7 @@ export const CaseDetail: React.FC<{
       return;
     }
 
-    handleUpdate({
-      ...localData,
+    patchCase({
       status: newStatus,
       depositReceivedDate: newStatus === CaseStatus.DEPOSIT_RECEIVED ? (localData.depositReceivedDate || today) : localData.depositReceivedDate,
       completionAcceptedDate: (newStatus === CaseStatus.COMPLETED || newStatus === CaseStatus.WARRANTY)
@@ -436,7 +447,7 @@ export const CaseDetail: React.FC<{
                 <h2 className="text-[8px] font-black uppercase text-zinc-400 mb-0.5 leading-none">Job Setup</h2>
                 <div className="text-xl font-black text-zinc-950 uppercase leading-none">區域配置 / ZONES</div>
               </div>
-              <Button onClick={() => handleUpdate({ ...localData, zones: [...localData.zones, { zoneId: `Z-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, zoneName: '新區域', category: ServiceCategory.WALL_CANCER, methodId: '', methodName: '', unit: '坪', unitPrice: 0, difficultyCoefficient: 1, items: [] }] })}><Plus size={14} /> 新增區域 / ADD</Button>
+              <Button onClick={() => replaceZones([...localData.zones, { zoneId: `Z-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, zoneName: '新區域', category: ServiceCategory.WALL_CANCER, methodId: '', methodName: '', unit: '坪', unitPrice: 0, difficultyCoefficient: 1, items: [] }])}><Plus size={14} /> 新增區域 / ADD</Button>
             </div>
 
             {/* 客戶基本資訊 */}
@@ -446,28 +457,28 @@ export const CaseDetail: React.FC<{
                   <Input
                     label="客戶姓名 / CUSTOMER NAME"
                     value={localData.customerName}
-                    onChange={(e) => setLocalData({ ...latestDataRef.current, customerName: e.target.value })}
-                    onBlur={(e) => handleUpdate({ ...latestDataRef.current, customerName: e.target.value, invoiceTitle: latestDataRef.current.invoiceTitle || e.target.value, siteContactName: latestDataRef.current.siteContactName || e.target.value })}
+                    onChange={(e) => patchDraft({ customerName: e.target.value })}
+                    onBlur={(e) => patchCase({ customerName: e.target.value, invoiceTitle: latestDataRef.current.invoiceTitle || e.target.value, siteContactName: latestDataRef.current.siteContactName || e.target.value })}
                   />
                   <Input
                     label="聯絡電話 / PHONE"
                     value={localData.phone}
-                    onChange={(e) => setLocalData({ ...latestDataRef.current, phone: e.target.value })}
-                    onBlur={(e) => handleUpdate({ ...latestDataRef.current, phone: e.target.value, siteContactPhone: latestDataRef.current.siteContactPhone || e.target.value })}
+                    onChange={(e) => patchDraft({ phone: e.target.value })}
+                    onBlur={(e) => patchCase({ phone: e.target.value, siteContactPhone: latestDataRef.current.siteContactPhone || e.target.value })}
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
                     label="現場聯絡人 / SITE CONTACT"
                     value={localData.siteContactName || ''}
-                    onChange={(e) => setLocalData({ ...latestDataRef.current, siteContactName: e.target.value })}
-                    onBlur={(e) => handleUpdate({ ...latestDataRef.current, siteContactName: e.target.value })}
+                    onChange={(e) => patchDraft({ siteContactName: e.target.value })}
+                    onBlur={(e) => patchCase({ siteContactName: e.target.value })}
                   />
                   <Input
                     label="現場電話 / SITE PHONE"
                     value={localData.siteContactPhone || ''}
-                    onChange={(e) => setLocalData({ ...latestDataRef.current, siteContactPhone: e.target.value })}
-                    onBlur={(e) => handleUpdate({ ...latestDataRef.current, siteContactPhone: e.target.value })}
+                    onChange={(e) => patchDraft({ siteContactPhone: e.target.value })}
+                    onBlur={(e) => patchCase({ siteContactPhone: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -475,7 +486,7 @@ export const CaseDetail: React.FC<{
                     label="施工地址 / ADDRESS"
                     value={localData.address || ''}
                     onChange={(e) => {
-                      setLocalData({ ...latestDataRef.current, address: e.target.value });
+                      patchDraft({ address: e.target.value });
                     }}
                     onBlur={async (e) => {
                       // 當失去焦點時，才進行地址轉經緯度
@@ -489,12 +500,7 @@ export const CaseDetail: React.FC<{
                         const result = await geocodeAddress(address);
                         if (result) {
                           const latest = latestDataRef.current;
-                          handleUpdate({
-                            ...latest,
-                            address,
-                            latitude: result.latitude,
-                            longitude: result.longitude
-                          });
+                           handleUpdate({ ...latest, address, latitude: result.latitude, longitude: result.longitude });
                           toast.success(`✓ 地址座標已自動設定\n${result.displayName}`, {
                             id: 'geocoding',
                             icon: '📍',
@@ -539,15 +545,15 @@ export const CaseDetail: React.FC<{
                 <Input
                   label="地址備註 / ADDRESS NOTE (選填)"
                   value={localData.addressNote || ''}
-                  onChange={(e) => setLocalData({ ...latestDataRef.current, addressNote: e.target.value })}
-                  onBlur={(e) => handleUpdate({ ...latestDataRef.current, addressNote: e.target.value })}
+                  onChange={(e) => patchDraft({ addressNote: e.target.value })}
+                  onBlur={(e) => patchCase({ addressNote: e.target.value })}
                   placeholder="例：3樓、後棟、B1 停車場旁"
                 />
                 <Input
                   label="建物/樓層資訊 / BUILDING CONTEXT"
                   value={localData.buildingContext || ''}
-                  onChange={(e) => setLocalData({ ...latestDataRef.current, buildingContext: e.target.value })}
-                  onBlur={(e) => handleUpdate({ ...latestDataRef.current, buildingContext: e.target.value })}
+                  onChange={(e) => patchDraft({ buildingContext: e.target.value })}
+                  onBlur={(e) => patchCase({ buildingContext: e.target.value })}
                   placeholder="例：社區A棟 12F 頂樓露台、透天 3F 外牆"
                 />
 
@@ -565,10 +571,7 @@ export const CaseDetail: React.FC<{
                         value={localData.latitude ?? ''}
                         onChange={e => {
                           const val = e.target.value;
-                          handleUpdate({
-                            ...localData,
-                            latitude: val ? parseFloat(val) : undefined
-                          });
+                          patchCase({ latitude: val ? parseFloat(val) : undefined });
                         }}
                         placeholder="25.033"
                       />
@@ -579,10 +582,7 @@ export const CaseDetail: React.FC<{
                         value={localData.longitude ?? ''}
                         onChange={e => {
                           const val = e.target.value;
-                          handleUpdate({
-                            ...localData,
-                            longitude: val ? parseFloat(val) : undefined
-                          });
+                          patchCase({ longitude: val ? parseFloat(val) : undefined });
                         }}
                         placeholder="121.565"
                       />
@@ -603,8 +603,8 @@ export const CaseDetail: React.FC<{
                     <textarea
                       className="w-full min-h-28 border border-zinc-200 rounded-sm px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-2 font-medium"
                       value={localData.leakSymptoms || ''}
-                      onChange={(e) => setLocalData({ ...latestDataRef.current, leakSymptoms: e.target.value })}
-                      onBlur={(e) => handleUpdate({ ...latestDataRef.current, leakSymptoms: e.target.value })}
+                      onChange={(e) => patchDraft({ leakSymptoms: e.target.value })}
+                      onBlur={(e) => patchCase({ leakSymptoms: e.target.value })}
                       placeholder="例：窗框滲水、頂樓積水、浴室牆角返潮"
                     />
                   </div>
@@ -613,8 +613,8 @@ export const CaseDetail: React.FC<{
                     <textarea
                       className="w-full min-h-28 border border-zinc-200 rounded-sm px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-2 font-medium"
                       value={localData.leakSourceDiagnosis || ''}
-                      onChange={(e) => setLocalData({ ...latestDataRef.current, leakSourceDiagnosis: e.target.value })}
-                      onBlur={(e) => handleUpdate({ ...latestDataRef.current, leakSourceDiagnosis: e.target.value })}
+                      onChange={(e) => patchDraft({ leakSourceDiagnosis: e.target.value })}
+                      onBlur={(e) => patchCase({ leakSourceDiagnosis: e.target.value })}
                       placeholder="例：女兒牆裂縫、窗框矽利康老化、上游住戶未處理"
                     />
                   </div>
@@ -625,8 +625,8 @@ export const CaseDetail: React.FC<{
                     <textarea
                       className="w-full min-h-24 border border-zinc-200 rounded-sm px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-2 font-medium"
                       value={localData.accessConstraints || ''}
-                      onChange={(e) => setLocalData({ ...latestDataRef.current, accessConstraints: e.target.value })}
-                      onBlur={(e) => handleUpdate({ ...latestDataRef.current, accessConstraints: e.target.value })}
+                      onChange={(e) => patchDraft({ accessConstraints: e.target.value })}
+                      onBlur={(e) => patchCase({ accessConstraints: e.target.value })}
                       placeholder="例：僅週末可施工、需通知管委會、需吊料"
                     />
                   </div>
@@ -635,8 +635,8 @@ export const CaseDetail: React.FC<{
                     <textarea
                       className="w-full min-h-24 border border-zinc-200 rounded-sm px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-2 font-medium"
                       value={localData.specialNote || ''}
-                      onChange={(e) => setLocalData({ ...latestDataRef.current, specialNote: e.target.value })}
-                      onBlur={(e) => handleUpdate({ ...latestDataRef.current, specialNote: e.target.value })}
+                      onChange={(e) => patchDraft({ specialNote: e.target.value })}
+                      onBlur={(e) => patchCase({ specialNote: e.target.value })}
                       placeholder="例：住戶要求先做測試區、材料需低味道"
                     />
                   </div>
@@ -645,7 +645,7 @@ export const CaseDetail: React.FC<{
             </Card>
 
             {localData.zones.map((zone, zIdx) => (
-              <ZoneCard key={zone.zoneId} zone={zone} methods={methods} onUpdate={uz => { const nz = [...localData.zones]; nz[zIdx] = uz; handleUpdate({ ...localData, zones: nz }); }} onDelete={() => handleUpdate({ ...localData, zones: localData.zones.filter((_, i) => i !== zIdx) })} />
+              <ZoneCard key={zone.zoneId} zone={zone} methods={methods} onUpdate={uz => { const nz = [...localData.zones]; nz[zIdx] = uz; replaceZones(nz); }} onDelete={() => replaceZones(localData.zones.filter((_, i) => i !== zIdx))} />
             ))}
           </div>
         )}
@@ -690,7 +690,7 @@ export const CaseDetail: React.FC<{
           <div className="space-y-8 animate-in fade-in slide-in-from-right duration-300">
             <Card title="自動排程引擎 / AUTO SCHEDULER">
               <div className="space-y-4">
-                <Input label="開工預定日 / START DATE" type="date" value={localData.startDate || ''} onChange={e => handleUpdate({ ...localData, startDate: e.target.value })} />
+                <Input label="開工預定日 / START DATE" type="date" value={localData.startDate || ''} onChange={e => patchCase({ startDate: e.target.value })} />
                 <div className="text-xs text-zinc-500 bg-zinc-50 border border-zinc-100 rounded-sm p-3">
                   目前排程規則：依區域順序串接、每道工序佔 1 個工作天、自動略過星期日，避免所有區域同日平行施工造成失真。
                 </div>
@@ -711,7 +711,7 @@ export const CaseDetail: React.FC<{
             <ProjectCalendar
               schedule={localData.schedule || []}
               logs={localData.logs || []}
-              onUpdate={(s) => handleUpdate({ ...localData, schedule: s })}
+              onUpdate={(s) => patchCase({ schedule: s })}
             />
           </div>
         )}
