@@ -28,9 +28,6 @@ const STATUS_ORDER = [
   CaseStatus.WARRANTY,
 ];
 
-const FIXED_DEPOSIT_RATIO = 0.7;
-const FIXED_FINAL_RATIO = 0.3;
-
 const addDays = (dateString: string, days: number) => {
   const [year, month, day] = dateString.split('-').map(Number);
   const value = new Date(year, month - 1, day);
@@ -233,7 +230,7 @@ export const CaseDetail: React.FC<{
     );
     const updatedData = {
       ...newData,
-      depositPercentage: FIXED_DEPOSIT_RATIO,
+      depositPercentage: typeof newData.depositPercentage === 'number' ? Math.max(0.05, Math.min(0.95, newData.depositPercentage)) : 0.7,
       finalPrice: baseTotal + (newData.manualPriceAdjustment || 0),
     };
 
@@ -278,8 +275,10 @@ export const CaseDetail: React.FC<{
 
   const liveFinalPrice = calculatedTotal + (localData.manualPriceAdjustment || 0);
   const frozenQuotePrice = localData.formalQuotedPrice || liveFinalPrice;
-  const depositAmount = Math.round(frozenQuotePrice * FIXED_DEPOSIT_RATIO);
-  const finalPaymentAmount = Math.round(frozenQuotePrice * FIXED_FINAL_RATIO);
+  const depositRatio = typeof localData.depositPercentage === 'number' ? localData.depositPercentage : 0.7;
+  const finalRatio = 1 - depositRatio;
+  const depositAmount = Math.round(frozenQuotePrice * depositRatio);
+  const finalPaymentAmount = Math.round(frozenQuotePrice * finalRatio);
   const activeWarrantyCount = (localData.warrantyRecords || []).filter((item) => item.responsibility !== 'chargeable').length;
   const pendingWarrantyCount = (localData.warrantyRecords || []).filter((item) => item.nextVisitDate && !item.result?.trim()).length;
   const overdueWarrantyCount = (localData.warrantyRecords || []).filter((item) => item.nextVisitDate && item.nextVisitDate < new Date().toISOString().slice(0, 10) && !item.result?.trim()).length;
@@ -379,7 +378,7 @@ export const CaseDetail: React.FC<{
 
   const confirmFormalizeCase = useCallback(async () => {
     try {
-      const formalized = await formalizeCase({ ...localData, formalQuotedPrice: frozenQuotePrice, depositPercentage: FIXED_DEPOSIT_RATIO });
+      const formalized = await formalizeCase({ ...localData, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio });
       onUpdate(formalized);
       setShowFormalizeConfirm(false);
       toast.success(`案件正式成立！正式編號: ${formalized.caseId}`, {
@@ -658,6 +657,7 @@ export const CaseDetail: React.FC<{
                 <Input label="簽約日期 / CONTRACT SIGNED" type="date" value={localData.contractSignedDate || ''} onChange={(e) => handleUpdate({ ...localData, contractSignedDate: e.target.value })} />
                 <Input label="發票抬頭 / INVOICE TITLE" value={localData.invoiceTitle || ''} onChange={(e) => handleUpdate({ ...localData, invoiceTitle: e.target.value })} />
                 <Input label="統一編號 / TAX ID" value={localData.invoiceTaxId || ''} onChange={(e) => handleUpdate({ ...localData, invoiceTaxId: e.target.value })} />
+                <Input label="頭期比例 % / DEPOSIT %" type="number" value={Math.round(depositRatio * 100)} onChange={(e) => handleUpdate({ ...localData, depositPercentage: (parseInt(e.target.value, 10) || 0) / 100 })} />
                 <Input label="收到頭期日 / DEPOSIT RECEIVED" type="date" value={localData.depositReceivedDate || ''} onChange={(e) => handleUpdate({ ...localData, depositReceivedDate: e.target.value, status: e.target.value ? CaseStatus.DEPOSIT_RECEIVED : localData.status })} />
                 <Input label="收到尾款日 / FINAL RECEIVED" type="date" value={localData.finalPaymentReceivedDate || ''} onChange={(e) => handleUpdate({ ...localData, finalPaymentReceivedDate: e.target.value })} />
               </div>
@@ -698,11 +698,11 @@ export const CaseDetail: React.FC<{
               </div>
               <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="border border-zinc-100 bg-zinc-50 rounded-sm p-4">
-                  <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">固定頭期 70%</div>
+                  <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">頭期 {Math.round(depositRatio * 100)}%</div>
                   <div className="text-xl font-black mt-2">${depositAmount.toLocaleString()}</div>
                 </div>
                 <div className="border border-zinc-100 bg-zinc-50 rounded-sm p-4">
-                  <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">固定尾款 30%</div>
+                  <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">尾款 {Math.round(finalRatio * 100)}%</div>
                   <div className="text-xl font-black mt-2">${finalPaymentAmount.toLocaleString()}</div>
                 </div>
                 <div className="border border-zinc-100 bg-zinc-50 rounded-sm p-4">
@@ -758,7 +758,7 @@ export const CaseDetail: React.FC<{
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <ExportButton
                 onClick={async () => {
-                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: FIXED_DEPOSIT_RATIO };
+                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
                   const { generateEvaluationPDF } = await getPDFService();
                   return generateEvaluationPDF(realParams, 'preview');
                 }}
@@ -767,7 +767,7 @@ export const CaseDetail: React.FC<{
               />
               <ExportButton
                 onClick={async () => {
-                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: FIXED_DEPOSIT_RATIO };
+                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
                   const { generateQuotationPDF } = await getPDFService();
                   return generateQuotationPDF(realParams, 'preview');
                 }}
@@ -776,7 +776,7 @@ export const CaseDetail: React.FC<{
               />
               <ExportButton
                 onClick={async () => {
-                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: FIXED_DEPOSIT_RATIO };
+                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
                   const { generateContractPDF } = await getPDFService();
                   return generateContractPDF(realParams, 'preview');
                 }}
@@ -785,7 +785,7 @@ export const CaseDetail: React.FC<{
               />
               <ExportButton
                 onClick={async () => {
-                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: FIXED_DEPOSIT_RATIO };
+                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
                   const { generateInvoicePDF } = await getPDFService();
                   return generateInvoicePDF(realParams, 'DEPOSIT', 'preview');
                 }}
@@ -794,7 +794,7 @@ export const CaseDetail: React.FC<{
               />
               <ExportButton
                 onClick={async () => {
-                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: FIXED_DEPOSIT_RATIO };
+                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
                   const { generateInvoicePDF } = await getPDFService();
                   return generateInvoicePDF(realParams, 'FINAL', 'preview');
                 }}
@@ -805,7 +805,7 @@ export const CaseDetail: React.FC<{
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <ExportButton
                 onClick={async () => {
-                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: FIXED_DEPOSIT_RATIO };
+                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
                   const { generateCompletionPDF } = await getPDFService();
                   return generateCompletionPDF(realParams, 'preview');
                 }}
@@ -814,7 +814,7 @@ export const CaseDetail: React.FC<{
               />
               <ExportButton
                 onClick={async () => {
-                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: FIXED_DEPOSIT_RATIO };
+                  const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
                   const { generateWarrantyCertificatePDF } = await getPDFService();
                   return generateWarrantyCertificatePDF(realParams, 'preview');
                 }}
@@ -979,7 +979,7 @@ export const CaseDetail: React.FC<{
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
                 <ExportButton
                   onClick={async () => {
-                    const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: FIXED_DEPOSIT_RATIO };
+                    const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
                     const { generateCompletionPDF } = await getPDFService();
                     return generateCompletionPDF(realParams, 'preview');
                   }}
@@ -988,7 +988,7 @@ export const CaseDetail: React.FC<{
                 />
                 <ExportButton
                   onClick={async () => {
-                    const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: FIXED_DEPOSIT_RATIO };
+                    const realParams = { ...localData, finalPrice: liveFinalPrice, formalQuotedPrice: frozenQuotePrice, depositPercentage: depositRatio };
                     const { generateWarrantyCertificatePDF } = await getPDFService();
                     return generateWarrantyCertificatePDF(realParams, 'preview');
                   }}

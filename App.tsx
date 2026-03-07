@@ -14,8 +14,10 @@ const DataCenter = React.lazy(() => import('./pages/DataCenter').then((m) => ({ 
 const Settings = React.lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
 const Login = React.lazy(() => import('./pages/Login').then((m) => ({ default: m.Login })));
 const ConstructionMap = React.lazy(() => import('./pages/ConstructionMap').then((m) => ({ default: m.ConstructionMap })));
+const Notifications = React.lazy(() => import('./pages/Notifications').then((m) => ({ default: m.Notifications })));
+const OperationsReport = React.lazy(() => import('./pages/OperationsReport').then((m) => ({ default: m.OperationsReport })));
 
-type AppView = 'dashboard' | 'detail' | 'kb' | 'datacenter' | 'settings' | 'map';
+type AppView = 'dashboard' | 'detail' | 'kb' | 'datacenter' | 'settings' | 'map' | 'notifications' | 'reports';
 
 interface PersistedViewState {
   view: AppView;
@@ -26,7 +28,7 @@ interface PersistedViewState {
 const VIEW_STATE_STORAGE_KEY = 'ISLAND7_VIEW_STATE_V1';
 const REMOTE_VIEW_STATE_KEY = 'island7_view_state';
 const VIEW_SYNC_DEBOUNCE_MS = 1200;
-const APP_VIEWS: AppView[] = ['dashboard', 'detail', 'kb', 'datacenter', 'settings', 'map'];
+const APP_VIEWS: AppView[] = ['dashboard', 'detail', 'kb', 'datacenter', 'settings', 'map', 'notifications', 'reports'];
 
 const parsePersistedViewState = (value: unknown): PersistedViewState | null => {
   if (!value || typeof value !== 'object') return null;
@@ -380,6 +382,8 @@ const App: React.FC = () => {
         {view === 'datacenter' && <DataCenter onNavigate={handleNavigate} />}
         {view === 'settings' && <Settings onNavigate={handleNavigate} />}
         {view === 'map' && <ConstructionMap cases={cases} onNavigate={handleNavigate} onCaseClick={handleCaseSelect} />}
+        {view === 'notifications' && <Notifications cases={cases} onNavigate={handleNavigate} onOpenCaseWithTab={handleOpenCaseWithTab} />}
+        {view === 'reports' && <OperationsReport cases={cases} onNavigate={handleNavigate} onOpenCaseWithTab={handleOpenCaseWithTab} />}
       </Suspense>
 
     </div>

@@ -3,7 +3,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { Layout } from '../components/Layout';
 import { Card, Button, Input, Select } from '../components/InputComponents';
-import { QuickCalculator } from '../components/QuickCalculator';
 import { MethodItem, ServiceCategory, MethodStep, Material, MethodRecipe, MaterialCategory, NavigationView, WarrantyType } from '../types';
 import { getMethods, saveMethod, deleteMethod, getMaterials, getRecipes, upsertRecipe, deleteRecipe, upsertMaterial, deleteMaterial } from '../services/storageService';
 import { Plus, Trash2, Save, ChevronRight, Layers, Clock, ArrowLeft, FolderOpen } from 'lucide-react';
@@ -20,6 +19,7 @@ const RecipeManager = ({ methodId }: { methodId: string }) => {
   const [category, setCategory] = useState<'fixed' | 'variable'>('variable');
   const [qty, setQty] = useState<number>(0);
   const [rate, setRate] = useState<number>(0);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -62,10 +62,7 @@ const RecipeManager = ({ methodId }: { methodId: string }) => {
   };
 
   const handleRemove = async (id: string) => {
-    if (confirm('確定移除此配方？')) {
-      await deleteRecipe(id);
-      load();
-    }
+    setPendingDeleteId(id);
   };
 
   const costPerPing = recipes.reduce((sum, r) => {
@@ -199,6 +196,18 @@ const RecipeManager = ({ methodId }: { methodId: string }) => {
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={Boolean(pendingDeleteId)}
+        title="確定移除此配方？"
+        message="此動作會從本方案移除配方材料。"
+        onCancel={() => setPendingDeleteId(null)}
+        onConfirm={async () => {
+          if (!pendingDeleteId) return;
+          await deleteRecipe(pendingDeleteId);
+          setPendingDeleteId(null);
+          load();
+        }}
+      />
     </Card>
   );
 };
@@ -215,6 +224,7 @@ const MaterialManager = () => {
 
   // Category Filter
   const [selectedCategory, setSelectedCategory] = useState<MaterialCategory | 'ALL'>('ALL');
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     load();
@@ -257,11 +267,7 @@ const MaterialManager = () => {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (confirm(`確定刪除材料「${name}」？\n注意：已使用此材料的配方將會受到影響。`)) {
-      await deleteMaterial(id);
-      toast.success('材料已刪除');
-      load();
-    }
+    setPendingDelete({ id, name });
   };
 
   const filteredMaterials = materials.filter(m =>
@@ -394,6 +400,19 @@ const MaterialManager = () => {
           No Materials Found
         </div>
       )}
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title="確定刪除材料？"
+        message={pendingDelete ? `確定刪除材料「${pendingDelete.name}」？\n注意：已使用此材料的配方將會受到影響。` : ''}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={async () => {
+          if (!pendingDelete) return;
+          await deleteMaterial(pendingDelete.id);
+          toast.success('材料已刪除');
+          setPendingDelete(null);
+          load();
+        }}
+      />
     </div>
   );
 };
@@ -425,6 +444,7 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
   const [activeTab, setActiveTab] = useState<'schemes' | 'materials'>('schemes');
   const [methods, setMethods] = useState<MethodItem[]>([]);
   const [editingMethod, setEditingMethod] = useState<MethodItem | null>(null);
+  const [pendingDeleteMethodId, setPendingDeleteMethodId] = useState<string | null>(null);
 
   useEffect(() => {
     loadMethods();
@@ -491,10 +511,7 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('確定要刪除此方案嗎？')) {
-      await deleteMethod(id);
-      loadMethods();
-    }
+    setPendingDeleteMethodId(id);
   };
 
   const addStep = () => {
@@ -671,9 +688,6 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
         </div>
       ) : (
         <div className="space-y-8 pb-20">
-          {/* Quick Calculator Widget */}
-          <QuickCalculator />
-
           <div className="flex justify-between items-end">
             <div>
               <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Standardized Database</h2>
@@ -719,6 +733,37 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
         </div>
       )
       }
-    </Layout >
+      <ConfirmDialog
+        open={Boolean(pendingDeleteMethodId)}
+        title="確定刪除此方案？"
+        message="刪除後將無法復原，且現有案件若仍引用該方案，需手動調整。"
+        onCancel={() => setPendingDeleteMethodId(null)}
+        onConfirm={async () => {
+          if (!pendingDeleteMethodId) return;
+          await deleteMethod(pendingDeleteMethodId);
+          setPendingDeleteMethodId(null);
+          setEditingMethod(null);
+          loadMethods();
+        }}
+      />
+    </Layout>
+  );
+};
+const ConfirmDialog = ({ open, title, message, onConfirm, onCancel }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void }) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[120] flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-md p-6 space-y-4">
+        <div>
+          <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">CONFIRMATION</div>
+          <h3 className="text-lg font-black text-zinc-900 mt-1">{title}</h3>
+          <p className="text-sm text-zinc-500 mt-2 whitespace-pre-line">{message}</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={onCancel}>取消</Button>
+          <Button variant="danger" className="flex-1" onClick={onConfirm}>確認</Button>
+        </div>
+      </div>
+    </div>
   );
 };

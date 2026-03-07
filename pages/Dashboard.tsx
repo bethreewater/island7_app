@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { Plus, Search, FolderOpen, TrendingUp, AlertCircle, CheckCircle2, ArrowRight, Book, X, User, Phone, MessageSquare, MapPin, Trash2, Edit, SlidersHorizontal, RotateCcw, Navigation, Wallet, ShieldCheck, CalendarClock, Download } from 'lucide-react';
+import { Plus, Search, FolderOpen, TrendingUp, AlertCircle, CheckCircle2, ArrowRight, Book, X, User, Phone, MessageSquare, MapPin, Trash2, Edit, SlidersHorizontal, RotateCcw, Navigation, Wallet, ShieldCheck, Download, Bell, BarChart3 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   CaseData,
@@ -31,7 +31,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
   const [searchTerm, setSearchTerm] = useState('');
   const [showNewModal, setShowNewModal] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'assessment' | 'active' | 'completed' | 'warranty'>('all');
   const [priceFilter, setPriceFilter] = useState<'all' | 'lt100k' | '100k_300k' | '300k_600k' | 'gt600k'>('all');
   const [dateFilter, setDateFilter] = useState<'all' | 'last30' | 'last90' | 'thisYear'>('all');
@@ -291,22 +290,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
     </div>
   );
 
-  if (error) {
-    return (
-      <Layout
-        title="系統管理首頁 / DASHBOARD"
-        onNavigate={onNavigate}
-        currentView="dashboard"
-      >
-        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg flex items-center gap-3">
-          <AlertCircle size={20} />
-          <span className="font-bold">{error}</span>
-          <Button onClick={() => window.location.reload()} variant="outline" className="ml-auto text-xs">重試 / RETRY</Button>
-        </div>
-      </Layout>
-    );
-  }
-
   return (
     <Layout
       title="系統管理首頁 / DASHBOARD"
@@ -405,6 +388,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
             icon={<Download size={20} />}
             title="營運 / OPS"
             subtitle="匯出報表"
+          />
+          <QuickActionButton
+            onClick={() => onNavigate?.('notifications')}
+            icon={<Bell size={20} />}
+            title="提醒 / ALERTS"
+            subtitle="通知中心"
+          />
+          <QuickActionButton
+            onClick={() => onNavigate?.('reports')}
+            icon={<BarChart3 size={20} />}
+            title="報表 / REPORTS"
+            subtitle="營運總覽"
           />
           <div className="col-span-2 md:col-span-3 bg-white border border-zinc-200 rounded-sm p-3 md:p-5 flex flex-col justify-between shadow-sm">
             <div className="text-[7px] md:text-[9px] font-black text-zinc-400 uppercase tracking-widest whitespace-nowrap leading-none">搜尋 / SEARCH</div>

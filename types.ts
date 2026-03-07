@@ -1,6 +1,6 @@
 
 
-export type NavigationView = 'dashboard' | 'kb' | 'datacenter' | 'settings' | 'map';
+export type NavigationView = 'dashboard' | 'kb' | 'datacenter' | 'settings' | 'map' | 'notifications' | 'reports';
 
 export enum CaseStatus {
   // New Stages

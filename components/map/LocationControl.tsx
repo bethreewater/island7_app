@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useMap } from 'react-leaflet';
 import { Locate, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export const LocationControl: React.FC = () => {
     const map = useMap();
@@ -14,7 +15,7 @@ export const LocationControl: React.FC = () => {
         }).on("locationerror", function (e) {
             console.error(e);
             setLoading(false);
-            alert("無法獲取您的位置，請確認瀏覽器權限");
+            toast.error('無法獲取您的位置，請確認瀏覽器權限');
         });
     };
 

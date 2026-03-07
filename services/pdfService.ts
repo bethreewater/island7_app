@@ -251,7 +251,9 @@ const fetchImageAsDataUrl = async (url: string): Promise<string | null> => {
 };
 
 const normalizeDepositRatio = (value?: number): number => {
-  return 0.7;
+  const ratio = typeof value === 'number' ? value : 0.7;
+  if (!Number.isFinite(ratio)) return 0.7;
+  return Math.max(0.05, Math.min(0.95, ratio));
 };
 
 const loadDbMethods = async (): Promise<MethodItem[]> => {
