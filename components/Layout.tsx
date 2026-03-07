@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Home, FileText, Settings, ChevronLeft, TrendingUp, Map } from 'lucide-react';
+import { Home, Settings, ChevronLeft, TrendingUp, Map, Bell, BarChart3 } from 'lucide-react';
 import { NavigationView } from '../types';
 
 
@@ -62,6 +62,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, title, onBack, onNavig
               施工地圖 / MAP
             </button>
             <button
+              onClick={() => onNavigate?.('notifications')}
+              className={`transition-colors ${currentView === 'notifications' ? 'text-white border-b-2 border-white pb-1 cursor-default' : 'text-zinc-500 hover:text-white'}`}
+              aria-label="通知中心"
+              aria-current={currentView === 'notifications' ? 'page' : undefined}
+            >
+              通知中心 / ALERTS
+            </button>
+            <button
+              onClick={() => onNavigate?.('reports')}
+              className={`transition-colors ${currentView === 'reports' ? 'text-white border-b-2 border-white pb-1 cursor-default' : 'text-zinc-500 hover:text-white'}`}
+              aria-label="營運報表"
+              aria-current={currentView === 'reports' ? 'page' : undefined}
+            >
+              營運報表 / REPORTS
+            </button>
+            <button
               onClick={() => onNavigate?.('settings')}
               className={`transition-colors ${currentView === 'settings' ? 'text-white border-b-2 border-white pb-1 cursor-default' : 'text-zinc-500 hover:text-white'}`}
               aria-label="系統設定"
@@ -82,7 +98,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title, onBack, onNavig
       {/* 行動端導航列 / MOBILE NAVIGATION */}
       {!hideMobileNav && (
       <nav
-        className="fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-3xl border-t border-zinc-100 flex justify-around py-4 z-[60] md:hidden shadow-[0_-10px_40px_rgba(0,0,0,0.05)]"
+        className="fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-3xl border-t border-zinc-100 flex justify-around py-4 z-[60] md:hidden shadow-[0_-10px_40px_rgba(0,0,0,0.05)] overflow-x-auto"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}
         role="navigation"
         aria-label="主要導航"
@@ -104,6 +120,18 @@ export const Layout: React.FC<LayoutProps> = ({ children, title, onBack, onNavig
           label="地圖 / MAP"
           active={currentView === 'map'}
           onClick={() => onNavigate?.('map')}
+        />
+        <NavButton
+          icon={<Bell size={20} />}
+          label="提醒 / ALERTS"
+          active={currentView === 'notifications'}
+          onClick={() => onNavigate?.('notifications')}
+        />
+        <NavButton
+          icon={<BarChart3 size={20} />}
+          label="報表 / REPORTS"
+          active={currentView === 'reports'}
+          onClick={() => onNavigate?.('reports')}
         />
         <NavButton
           icon={<Settings size={20} />}

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { geocodeAddress } from '../services/geocodingService';
-import { CaseData, MethodItem, ServiceCategory, CaseStatus, STATUS_LABELS, ScheduleTask, ConstructionLog, NavigationView, normalizeCaseStatus, WarrantyRecord, ChangeOrder } from '../types';
+import { CaseData, MethodItem, ServiceCategory, CaseStatus, STATUS_LABELS, ScheduleTask, ConstructionLog, NavigationView, normalizeCaseStatus, WarrantyRecord, ChangeOrder, Zone } from '../types';
 import { getMethods, saveCase, formalizeCase, getCaseDetails } from '../services/storageService';
 import { Button, Card, Input, ImageUploader } from '../components/InputComponents';
 import { Layout } from '../components/Layout';
@@ -282,6 +282,33 @@ export const CaseDetail: React.FC<{
     patchCase({ zones });
   }, [patchCase]);
 
+  const addZone = useCallback(() => {
+    replaceZones([
+      ...latestDataRef.current.zones,
+      {
+        zoneId: `Z-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        zoneName: '新區域',
+        category: ServiceCategory.WALL_CANCER,
+        methodId: '',
+        methodName: '',
+        unit: '坪',
+        unitPrice: 0,
+        difficultyCoefficient: 1,
+        items: [],
+      },
+    ]);
+  }, [replaceZones]);
+
+  const updateZone = useCallback((index: number, zone: Zone) => {
+    const nextZones = [...latestDataRef.current.zones];
+    nextZones[index] = zone;
+    replaceZones(nextZones);
+  }, [replaceZones]);
+
+  const removeZone = useCallback((index: number) => {
+    replaceZones(latestDataRef.current.zones.filter((_, i) => i !== index));
+  }, [replaceZones]);
+
   const calculatedTotal = useMemo(() => {
     if (!localData.zones) return 0;
     return localData.zones.reduce((sum, zone) => sum + (zone.items || []).reduce((zSum, item) => zSum + (item.itemPrice || 0), 0), 0);
@@ -447,7 +474,7 @@ export const CaseDetail: React.FC<{
                 <h2 className="text-[8px] font-black uppercase text-zinc-400 mb-0.5 leading-none">Job Setup</h2>
                 <div className="text-xl font-black text-zinc-950 uppercase leading-none">區域配置 / ZONES</div>
               </div>
-              <Button onClick={() => replaceZones([...localData.zones, { zoneId: `Z-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, zoneName: '新區域', category: ServiceCategory.WALL_CANCER, methodId: '', methodName: '', unit: '坪', unitPrice: 0, difficultyCoefficient: 1, items: [] }])}><Plus size={14} /> 新增區域 / ADD</Button>
+              <Button onClick={addZone}><Plus size={14} /> 新增區域 / ADD</Button>
             </div>
 
             {/* 客戶基本資訊 */}
@@ -645,7 +672,7 @@ export const CaseDetail: React.FC<{
             </Card>
 
             {localData.zones.map((zone, zIdx) => (
-              <ZoneCard key={zone.zoneId} zone={zone} methods={methods} onUpdate={uz => { const nz = [...localData.zones]; nz[zIdx] = uz; replaceZones(nz); }} onDelete={() => replaceZones(localData.zones.filter((_, i) => i !== zIdx))} />
+              <ZoneCard key={zone.zoneId} zone={zone} methods={methods} onUpdate={(uz) => updateZone(zIdx, uz)} onDelete={() => removeZone(zIdx)} />
             ))}
           </div>
         )}

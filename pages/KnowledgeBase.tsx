@@ -235,6 +235,12 @@ const MaterialManager = () => {
     setMaterials(data);
   };
 
+  const closeEditor = () => {
+    setEditingId(null);
+    setEditForm({});
+    setShowAdd(false);
+  };
+
   const handleSave = async () => {
     if (!editForm.name || !editForm.unit || !editForm.unitPrice) {
       toast.error('請填寫完整資料');
@@ -254,9 +260,7 @@ const MaterialManager = () => {
 
     await upsertMaterial(toSave);
     toast.success(editingId ? '材料已更新' : '材料已新增');
-    setEditingId(null);
-    setEditForm({});
-    setShowAdd(false);
+    closeEditor();
     load();
   };
 
@@ -266,14 +270,15 @@ const MaterialManager = () => {
     setShowAdd(true);
   };
 
-  const handleDelete = async (id: string, name: string) => {
+  const handleDelete = (id: string, name: string) => {
     setPendingDelete({ id, name });
   };
 
-  const filteredMaterials = materials.filter(m =>
-    (m.name.includes(searchTerm) || m.brand?.includes(searchTerm)) &&
-    (selectedCategory === 'ALL' || (m.category || MaterialCategory.OTHER) === selectedCategory)
-  );
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filteredMaterials = materials.filter((m) => {
+    const matchesSearch = !normalizedSearch || m.name.toLowerCase().includes(normalizedSearch) || m.brand?.toLowerCase().includes(normalizedSearch);
+    return matchesSearch && (selectedCategory === 'ALL' || (m.category || MaterialCategory.OTHER) === selectedCategory);
+  });
 
   // Group materials by category if viewing ALL
   const groupedMaterials = useMemo<Record<string, Material[]> | null>(() => {
@@ -338,7 +343,7 @@ const MaterialManager = () => {
           <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="bg-blue-600 p-4 flex justify-between items-center text-white">
               <h3 className="font-black text-sm uppercase tracking-widest">{editingId ? '編輯材料' : '新增材料'} / {editingId ? 'EDIT' : 'NEW'}</h3>
-              <button onClick={() => setShowAdd(false)} className="hover:bg-blue-700 p-1 rounded"><Trash2 className="opacity-0" size={16} />✕</button>
+              <button onClick={closeEditor} className="hover:bg-blue-700 p-1 rounded"><Trash2 className="opacity-0" size={16} />✕</button>
             </div>
             <div className="p-6 space-y-4">
               <Input label="材料名稱 / NAME" value={editForm.name || ''} onChange={e => setEditForm({ ...editForm, name: e.target.value })} placeholder="例如：得利全效乳膠漆" />
@@ -365,7 +370,7 @@ const MaterialManager = () => {
               </div>
             </div>
             <div className="bg-zinc-50 p-4 flex justify-end gap-3 border-t border-zinc-100">
-              <Button variant="outline" onClick={() => setShowAdd(false)}>取消</Button>
+              <Button variant="outline" onClick={closeEditor}>取消</Button>
               <Button onClick={handleSave} className="bg-blue-600 px-8">儲存</Button>
             </div>
           </div>
@@ -410,6 +415,7 @@ const MaterialManager = () => {
           await deleteMaterial(pendingDelete.id);
           toast.success('材料已刪除');
           setPendingDelete(null);
+          closeEditor();
           load();
         }}
       />

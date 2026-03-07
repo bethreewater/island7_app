@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { Plus, Search, FolderOpen, TrendingUp, AlertCircle, CheckCircle2, ArrowRight, Book, X, User, Phone, MessageSquare, MapPin, Trash2, Edit, SlidersHorizontal, RotateCcw, Navigation, Wallet, ShieldCheck, Download, Bell, BarChart3 } from 'lucide-react';
+import { Plus, Search, FolderOpen, TrendingUp, AlertCircle, CheckCircle2, Book, X, User, Phone, MessageSquare, MapPin, Navigation, Wallet, ShieldCheck, Download, Bell, BarChart3 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   CaseData,
@@ -19,6 +19,8 @@ import { TodayTasks } from '../components/TodayTasks';
 import { StatCard } from '../components/dashboard/StatCard';
 import { QuickActionButton } from '../components/dashboard/QuickActionButton';
 import { QueueCard } from '../components/dashboard/QueueCard';
+import { DashboardFilters } from '../components/dashboard/DashboardFilters';
+import { DashboardCaseList } from '../components/dashboard/DashboardCaseList';
 import { buildOperationQueues, getTodayString, hasMissingLocation, hasOverdueWarrantyVisit, hasPendingDeposit, hasPendingFinalPayment, hasPendingWarrantyVisit } from '../utils/operations';
 
 interface DashboardProps {
@@ -62,6 +64,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
   }, [cases]);
 
   const operationQueues = useMemo(() => buildOperationQueues(cases), [cases]);
+  const opsFilterOptions = [
+    { key: 'all', label: '全部營運' },
+    { key: 'missing_location', label: '待補定位' },
+    { key: 'pending_deposit', label: '待頭期' },
+    { key: 'pending_final', label: '待尾款' },
+    { key: 'pending_warranty', label: '待保固' },
+  ] as const;
 
   const exportOperationalReport = useCallback(() => {
     const today = getTodayString();
@@ -267,6 +276,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
 
   const hasAdvancedFilters = statusFilter !== 'all' || priceFilter !== 'all' || dateFilter !== 'all' || sortBy !== 'created_desc' || opsFilter !== 'all';
 
+  const resetFilters = useCallback(() => {
+    setStatusFilter('all');
+    setPriceFilter('all');
+    setDateFilter('all');
+    setSortBy('created_desc');
+    setOpsFilter('all');
+  }, []);
+
   if (loading) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-white">
       <div className="w-8 h-8 md:w-12 md:h-12 border-[3px] md:border-4 border-zinc-100 border-t-zinc-950 rounded-full animate-spin mb-3"></div>
@@ -318,13 +335,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
         </Card>
 
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-          {[
-            { key: 'all', label: '全部營運' },
-            { key: 'missing_location', label: '待補定位' },
-            { key: 'pending_deposit', label: '待頭期' },
-            { key: 'pending_final', label: '待尾款' },
-            { key: 'pending_warranty', label: '待保固' },
-          ].map((item) => {
+          {opsFilterOptions.map((item) => {
             const active = opsFilter === item.key;
             return (
               <button
@@ -399,173 +410,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ cases = [], onSelectCase, 
           </div>
         </div>
 
-        {/* 清單標題 / HEADER */}
-        <div className="bg-white border border-zinc-100 rounded-sm p-3 md:p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <div className="flex items-center gap-2 text-[9px] md:text-[10px] font-black text-zinc-400 uppercase tracking-widest whitespace-nowrap">
-              <SlidersHorizontal size={14} /> 篩選 / FILTERS
-            </div>
-            {hasAdvancedFilters && (
-              <button
-                onClick={() => {
-                  setStatusFilter('all');
-                  setPriceFilter('all');
-                  setDateFilter('all');
-                  setSortBy('created_desc');
-                  setOpsFilter('all');
-                }}
-                className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-zinc-900 transition-colors flex items-center gap-1"
-              >
-                <RotateCcw size={12} /> 清除條件
-              </button>
-            )}
-          </div>
+        <DashboardFilters
+          statusFilter={statusFilter}
+          priceFilter={priceFilter}
+          dateFilter={dateFilter}
+          sortBy={sortBy}
+          hasAdvancedFilters={hasAdvancedFilters}
+          onStatusFilterChange={setStatusFilter}
+          onPriceFilterChange={setPriceFilter}
+          onDateFilterChange={setDateFilter}
+          onSortChange={setSortBy}
+          onReset={resetFilters}
+        />
 
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 md:pb-0 mb-3">
-            {[
-              { key: 'all', label: '全部' },
-              { key: 'assessment', label: '評估' },
-              { key: 'active', label: '進行中' },
-              { key: 'completed', label: '完工' },
-              { key: 'warranty', label: '保固' },
-            ].map((item) => {
-              const active = statusFilter === item.key;
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => setStatusFilter(item.key as typeof statusFilter)}
-                  className={`px-3 py-1.5 text-[9px] md:text-[10px] rounded-sm border font-black uppercase tracking-widest whitespace-nowrap transition-colors ${active
-                    ? 'bg-zinc-950 text-white border-zinc-950'
-                    : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-400'
-                    }`}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-3">
-            <select
-              value={priceFilter}
-              onChange={(e) => setPriceFilter(e.target.value as typeof priceFilter)}
-              className="w-full bg-white border border-zinc-200 rounded-sm px-2.5 py-2 text-[10px] md:text-[11px] font-black uppercase tracking-widest text-zinc-700 outline-none focus:border-zinc-950"
-            >
-              <option value="all">金額：全部</option>
-              <option value="lt100k">金額：10萬以下</option>
-              <option value="100k_300k">金額：10萬-30萬</option>
-              <option value="300k_600k">金額：30萬-60萬</option>
-              <option value="gt600k">金額：60萬以上</option>
-            </select>
-
-            <select
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value as typeof dateFilter)}
-              className="w-full bg-white border border-zinc-200 rounded-sm px-2.5 py-2 text-[10px] md:text-[11px] font-black uppercase tracking-widest text-zinc-700 outline-none focus:border-zinc-950"
-            >
-              <option value="all">日期：全部</option>
-              <option value="last30">日期：近30天</option>
-              <option value="last90">日期：近90天</option>
-              <option value="thisYear">日期：今年</option>
-            </select>
-
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-              className="w-full bg-white border border-zinc-200 rounded-sm px-2.5 py-2 text-[10px] md:text-[11px] font-black uppercase tracking-widest text-zinc-700 outline-none focus:border-zinc-950"
-            >
-              <option value="created_desc">排序：最新建立</option>
-              <option value="created_asc">排序：最早建立</option>
-              <option value="price_desc">排序：金額高到低</option>
-              <option value="price_asc">排序：金額低到高</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="flex items-end justify-between border-b md:border-b-2 border-zinc-950 pb-2 md:pb-3 mb-4 md:mb-6">
-          <div className="whitespace-nowrap min-w-0">
-            <h2 className="text-[7px] md:text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-0.5 leading-none">PROJECT ARCHIVE</h2>
-            <div className="text-lg md:text-2xl font-black text-zinc-950 tracking-tighter uppercase leading-none truncate">案件清單 / RECENT</div>
-          </div>
-          <div className="text-[7px] md:text-[9px] font-black text-zinc-400 uppercase tracking-widest bg-zinc-50 px-2 py-1 rounded-sm whitespace-nowrap">{filteredCases.length} / {cases.length} 筆</div>
-        </div>
-
-        {/* 列表內容 / LIST - COMPACT FOR MOBILE */}
-        <div className="space-y-2 md:space-y-3">
-          {filteredCases.length > 0 ? filteredCases.map(c => (
-            <div
-              key={c.caseId}
-              onClick={() => handleCaseClick(c.caseId)}
-              className="group bg-white border border-zinc-100 rounded-sm p-3 md:p-5 hover:border-zinc-950 transition-all cursor-pointer flex items-center justify-between shadow-sm"
-            >
-              <div className="flex items-center gap-4 md:gap-6 min-w-0">
-                <div className={`w-1 h-8 md:w-1.5 md:h-10 rounded-full shrink-0 ${isActiveStatus(c.status) ? 'bg-zinc-950' : 'bg-zinc-100'}`}></div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5 whitespace-nowrap overflow-hidden">
-                    <span className="font-black text-sm md:text-lg tracking-tight text-zinc-950 uppercase truncate">{c.customerName}</span>
-                    {/* Status Badge */}
-                    <span className={`text-[8px] md:text-[10px] px-2 py-0.5 rounded-sm border uppercase font-black tracking-widest ${isActiveStatus(c.status) ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                      isCompletedStatus(c.status) ? 'bg-zinc-100 text-zinc-500 border-zinc-200' :
-                        normalizeCaseStatus(c.status) === CaseStatus.WARRANTY ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                          'bg-zinc-950 text-white border-zinc-950'
-                      }`}>
-                      {STATUS_LABELS[normalizeCaseStatus(c.status)] || (c.status as string).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[8px] md:text-[10px] font-black text-zinc-300 tracking-tight whitespace-nowrap opacity-60">
-                    <MapPin className="w-2 h-2 md:w-2.5 md:h-2.5" /> <span className="truncate">{c.address || '未填寫地址'}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {hasMissingLocation(c) && (
-                      <span className="text-[8px] md:text-[9px] px-2 py-0.5 rounded-sm border bg-amber-50 text-amber-700 border-amber-200 font-black uppercase tracking-widest">待定位</span>
-                    )}
-                    {hasPendingDeposit(c) && (
-                      <span className="text-[8px] md:text-[9px] px-2 py-0.5 rounded-sm border bg-blue-50 text-blue-700 border-blue-200 font-black uppercase tracking-widest">待頭期</span>
-                    )}
-                    {hasPendingFinalPayment(c) && (
-                      <span className="text-[8px] md:text-[9px] px-2 py-0.5 rounded-sm border bg-emerald-50 text-emerald-700 border-emerald-200 font-black uppercase tracking-widest">待尾款</span>
-                    )}
-                    {hasPendingWarrantyVisit(c) && (
-                      <span className={`text-[8px] md:text-[9px] px-2 py-0.5 rounded-sm border font-black uppercase tracking-widest ${
-                        hasOverdueWarrantyVisit(c, getTodayString())
-                          ? 'bg-rose-50 text-rose-700 border-rose-200'
-                          : 'bg-violet-50 text-violet-700 border-violet-200'
-                      }`}>待回訪</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 shrink-0 ml-2">
-                {/* 編輯/刪除按鈕 (Desktop shows on hover, Mobile always visible) */}
-                <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={(e) => handleEdit(c, e)}
-                    className="p-2 hover:bg-zinc-100 rounded-full text-zinc-400 hover:text-zinc-950 transition-colors"
-                    title="編輯案件"
-                  >
-                    <Edit className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                  </button>
-                  <button
-                    onClick={(e) => handleDelete(c.caseId, c.customerName, e)}
-                    className="p-2 hover:bg-red-50 rounded-full text-zinc-400 hover:text-red-600 transition-colors"
-                    title="刪除案件"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                  </button>
-                </div>
-
-                <div className="text-right whitespace-nowrap">
-                  <div className="text-[12px] md:text-base font-black text-zinc-950 tracking-tighter leading-none">${(c.finalPrice || 0).toLocaleString()}</div>
-                </div>
-                <ArrowRight className="w-4 h-4 md:w-5 md:h-5 text-zinc-100 group-hover:text-zinc-950 transition-all" />
-              </div>
-            </div>
-          )) : (
-            <div className="text-center py-20 border border-dotted border-zinc-100 rounded-sm">
-              <div className="text-zinc-200 font-black tracking-widest uppercase text-[8px] italic">NO RECORDS</div>
-            </div>
-          )}
-        </div>
+        <DashboardCaseList cases={filteredCases} totalCount={cases.length} onOpen={handleCaseClick} onEdit={handleEdit} onDelete={handleDelete} />
 
         {/* 新增彈窗 / COMPACT MODAL FOR MOBILE */}
         {showNewModal && (
