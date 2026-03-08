@@ -37,9 +37,9 @@ const toCaseDataListItem = (row: Partial<CaseData>): CaseData => ({
   invoiceTaxId: row.invoiceTaxId,
   paymentNote: row.paymentNote,
   finalPrice: row.finalPrice || 0,
-  schedule: [],
+  schedule: row.schedule || [],
   logs: [],
-  warrantyRecords: [],
+  warrantyRecords: row.warrantyRecords || [],
   changeOrders: [],
   isPartial: true,
 });
@@ -78,7 +78,7 @@ export const getCases = async (): Promise<CaseData[]> => {
   // Unified lightweight fetch for list views
   const { data, error } = await supabase
     .from('cases')
-    .select('caseId, createdDate, customerName, phone, siteContactName, siteContactPhone, lineId, address, latitude, longitude, addressNote, buildingContext, status, finalPrice, manualPriceAdjustment, depositReceivedDate, finalPaymentReceivedDate')
+    .select('caseId, createdDate, contractSignedDate, customerName, phone, siteContactName, siteContactPhone, lineId, address, latitude, longitude, addressNote, buildingContext, status, finalPrice, manualPriceAdjustment, depositReceivedDate, finalPaymentReceivedDate, schedule, warrantyRecords')
     .order('createdDate', { ascending: false });
 
   if (error) {
@@ -109,7 +109,7 @@ export const getCasesPaginated = async (page: number = 1, limit: number = 20): P
 
   const { data, error, count } = await supabase
     .from('cases')
-    .select('caseId, createdDate, customerName, phone, siteContactName, siteContactPhone, lineId, address, latitude, longitude, addressNote, buildingContext, status, finalPrice, manualPriceAdjustment, depositReceivedDate, finalPaymentReceivedDate', { count: 'exact' })
+    .select('caseId, createdDate, contractSignedDate, customerName, phone, siteContactName, siteContactPhone, lineId, address, latitude, longitude, addressNote, buildingContext, status, finalPrice, manualPriceAdjustment, depositReceivedDate, finalPaymentReceivedDate, schedule, warrantyRecords', { count: 'exact' })
     .order('createdDate', { ascending: false })
     .range(start, end);
 

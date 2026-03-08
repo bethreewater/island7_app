@@ -1,231 +1,191 @@
 import React, { useMemo } from 'react';
-import {
-    CaseData,
-    ScheduleTask,
-    isConstructionStatus,
-    isAssessmentStatus,
-    normalizeCaseStatus,
-    CaseStatus
-} from '../types';
-import { MapPin, TrendingUp, Clock } from 'lucide-react';
+import { ArrowRight, Clock3, MapPin, ShieldAlert, WalletCards } from 'lucide-react';
+import { CaseData, ScheduleTask, isConstructionStatus, isAssessmentStatus, normalizeCaseStatus, CaseStatus } from '../types';
+import { getCaseNextAction, getCasePrimarySummary } from '../utils/dashboard';
 
 interface TodayTasksProps {
-    cases: CaseData[];
-    onSelectCase: (caseId: string, targetTab?: 'eval' | 'log' | 'quote' | 'mats' | 'schedule' | 'warranty') => void;
+  cases: CaseData[];
+  onSelectCase: (caseId: string, targetTab?: 'eval' | 'log' | 'quote' | 'mats' | 'schedule' | 'warranty') => void;
 }
 
 interface TaskInfo {
-    case: CaseData;
-    todayTasks: ScheduleTask[];
-    progress: number;
-    totalDays: number;
-    currentDay: number;
+  case: CaseData;
+  todayTasks: ScheduleTask[];
+  progress: number;
+  totalDays: number;
+  currentDay: number;
 }
 
 export const TodayTasks: React.FC<TodayTasksProps> = ({ cases, onSelectCase }) => {
-    const { activeToday, pendingStart, planningQueue, paymentQueue } = useMemo(() => {
-        const today = new Date().toISOString().split('T')[0];
+  const { activeToday, pendingStart, planningQueue, paymentQueue } = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
 
-        const activeToday: TaskInfo[] = cases
-            .filter(c => isConstructionStatus(c.status))
-            .map(c => {
-                const todayTasks = c.schedule?.filter(task =>
-                    task.date === today && !task.isCompleted
-                ) || [];
+    const activeToday: TaskInfo[] = cases
+      .filter((item) => isConstructionStatus(item.status))
+      .map((item) => {
+        const todayTasks = item.schedule?.filter((task) => task.date === today && !task.isCompleted) || [];
+        const totalTasks = item.schedule?.length || 0;
+        const completedTasks = item.schedule?.filter((task) => task.isCompleted).length || 0;
+        const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+        const allDates = Array.from(new Set(item.schedule?.map((task) => task.date) || [])).sort();
+        const totalDays = allDates.length;
+        const currentDay = allDates.findIndex((date) => date === today) + 1;
 
-                const totalTasks = c.schedule?.length || 0;
-                const completedTasks = c.schedule?.filter(t => t.isCompleted).length || 0;
-                const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+        return { case: item, todayTasks, progress, totalDays, currentDay };
+      })
+      .filter((item) => item.todayTasks.length > 0);
 
-                // Calculate days
-                const allDates = c.schedule?.map(t => t.date).sort() || [];
-                const totalDays = allDates.length;
-                const currentDay = allDates.findIndex(d => d === today) + 1;
+    const pendingStart = cases.filter((item) => isAssessmentStatus(item.status)).slice(0, 4);
+    const planningQueue = cases.filter((item) => {
+      const status = normalizeCaseStatus(item.status);
+      return status === CaseStatus.PLANNING || status === CaseStatus.DEPOSIT_RECEIVED;
+    }).slice(0, 4);
+    const paymentQueue = cases.filter((item) => {
+      const status = normalizeCaseStatus(item.status);
+      return status === CaseStatus.FINAL_PAYMENT || (status === CaseStatus.DEPOSIT_RECEIVED && !item.depositReceivedDate);
+    }).slice(0, 4);
 
-                return {
-                    case: c,
-                    todayTasks,
-                    progress,
-                    totalDays,
-                    currentDay
-                };
-            })
-            .filter(item => item.todayTasks.length > 0);
+    return { activeToday, pendingStart, planningQueue, paymentQueue };
+  }, [cases]);
 
-        const pendingStart = cases.filter(c => isAssessmentStatus(c.status));
-        const planningQueue = cases.filter(c => normalizeCaseStatus(c.status) === CaseStatus.PLANNING || normalizeCaseStatus(c.status) === CaseStatus.DEPOSIT_RECEIVED);
-        const paymentQueue = cases.filter(c => normalizeCaseStatus(c.status) === CaseStatus.FINAL_PAYMENT || (normalizeCaseStatus(c.status) === CaseStatus.DEPOSIT_RECEIVED && !c.depositReceivedDate));
+  const todayDate = new Date().toLocaleDateString('zh-TW', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
 
-        return { activeToday, pendingStart, planningQueue, paymentQueue };
-    }, [cases]);
+  const primaryFocus = activeToday[0]?.case || paymentQueue[0] || planningQueue[0] || pendingStart[0] || null;
+  const primaryAction = primaryFocus ? getCaseNextAction(primaryFocus) : null;
 
-    const todayDate = new Date().toLocaleDateString('zh-TW', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    });
-
-    return (
-        <div className="bg-white rounded-sm shadow-sm border border-zinc-100 overflow-hidden mb-6 animate-in fade-in duration-300">
-            {/* Header */}
-            <div className="px-4 md:px-6 py-3 md:py-4 border-b border-zinc-50 flex justify-between items-center bg-gradient-to-r from-blue-50 to-white">
-                <div className="flex items-center gap-3">
-                    <div className="w-1 h-6 bg-blue-600"></div>
-                    <div>
-                        <h3 className="font-black text-zinc-950 text-sm md:text-base uppercase tracking-wider leading-tight">
-                            今日任務 / TODAY'S TASKS
-                        </h3>
-                    </div>
-                </div>
-                <div className="text-xs font-mono text-zinc-400">
-                    📅 {todayDate}
-                </div>
+  return (
+    <div className="rounded-sm border border-zinc-200 bg-white shadow-sm overflow-hidden animate-in fade-in duration-300">
+      <div className="border-b border-zinc-100 bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-800 px-5 py-5 text-white md:px-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400">TODAY FOCUS</div>
+            <h3 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">今日先處理什麼</h3>
+            <div className="mt-2 text-sm text-zinc-300">{todayDate} - 把今天最該處理的施工、排程、請款與保固放在同一個入口。</div>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-black uppercase tracking-widest md:min-w-[320px]">
+            <div className="rounded-sm border border-white/10 bg-white/5 p-3">
+              <div className="text-zinc-500">施工</div>
+              <div className="mt-1 text-xl text-white">{activeToday.length}</div>
             </div>
-
-            <div className="p-4 md:p-6">
-                {/* Active Cases Today */}
-                {activeToday.length > 0 && (
-                    <div className="mb-6">
-                        <div className="flex items-center gap-2 mb-4">
-                            <div className="text-xs font-black text-zinc-600 uppercase tracking-wider">
-                                🚧 進行中 ({activeToday.length} 案件)
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {activeToday.map(({ case: caseItem, todayTasks, progress, totalDays, currentDay }) => (
-                                <div
-                                    key={caseItem.caseId}
-                                    onClick={() => onSelectCase(caseItem.caseId, 'log')}
-                                    className="border-2 border-green-200 rounded-lg p-4 hover:border-green-400 hover:shadow-md transition-all cursor-pointer bg-gradient-to-br from-white to-green-50/30"
-                                >
-                                    {/* Case Name */}
-                                    <div className="font-black text-base text-zinc-900 mb-2">
-                                        {caseItem.customerName}
-                                    </div>
-
-                                    {/* Today's Tasks */}
-                                    <div className="text-xs text-zinc-600 mb-3">
-                                        {todayTasks.map((task, idx) => (
-                                            <div key={task.taskId || idx} className="flex items-start gap-1">
-                                                <span className="text-green-600">•</span>
-                                                <span>{task.taskName}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {/* Location */}
-                                    {caseItem.address && (
-                                        <div className="flex items-center gap-1 text-xs text-zinc-500 mb-3">
-                                            <MapPin size={12} />
-                                            <span className="truncate">{caseItem.address}</span>
-                                        </div>
-                                    )}
-
-                                    {/* Progress Bar */}
-                                    <div className="space-y-1">
-                                        <div className="flex justify-between items-center text-xs">
-                                            <span className="text-zinc-400 font-mono">進度</span>
-                                            <span className="font-black text-zinc-700">
-                                                {progress}%
-                                                {currentDay > 0 && totalDays > 0 && (
-                                                    <span className="ml-2 text-zinc-400 font-normal">
-                                                        (第{currentDay}天/共{totalDays}天)
-                                                    </span>
-                                                )}
-                                            </span>
-                                        </div>
-                                        <div className="w-full bg-zinc-100 rounded-full h-2 overflow-hidden">
-                                            <div
-                                                className="h-full bg-gradient-to-r from-green-500 to-green-600 transition-all duration-500"
-                                                style={{ width: `${progress}%` }}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* View Details Button */}
-                                    <div className="mt-3 text-xs text-green-700 font-black flex items-center gap-1 hover:gap-2 transition-all">
-                                        查看詳情 →
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Pending Start Cases */}
-                {pendingStart.length > 0 && (
-                    <div>
-                        <div className="flex items-center gap-2 mb-3">
-                            <div className="text-xs font-black text-zinc-600 uppercase tracking-wider">
-                                ⏰ 待開工 ({pendingStart.length} 案件)
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            {pendingStart.slice(0, 3).map(caseItem => (
-                                <div
-                                    key={caseItem.caseId}
-                                    onClick={() => onSelectCase(caseItem.caseId, 'eval')}
-                                    className="flex items-center gap-3 p-3 border border-orange-200 rounded-lg hover:border-orange-400 hover:bg-orange-50/30 transition-all cursor-pointer"
-                                >
-                                    <Clock size={16} className="text-orange-500 shrink-0" />
-                                    <div className="flex-1 min-w-0">
-                                        <div className="font-bold text-sm text-zinc-900 truncate">
-                                            {caseItem.customerName}
-                                        </div>
-                                        <div className="text-xs text-zinc-500 truncate">
-                                            {caseItem.address || '待安排現場評估'}
-                                        </div>
-                                    </div>
-                                    <TrendingUp size={14} className="text-orange-400 shrink-0" />
-                                </div>
-                            ))}
-                            {pendingStart.length > 3 && (
-                                <div className="text-xs text-zinc-400 text-center pt-1">
-                                    +{pendingStart.length - 3} 個待開工案件
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {(planningQueue.length > 0 || paymentQueue.length > 0) && (
-                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/20">
-                            <div className="text-xs font-black text-blue-700 uppercase tracking-wider mb-3">備料/待進場 ({planningQueue.length})</div>
-                            <div className="space-y-2">
-                                {planningQueue.slice(0, 3).map((caseItem) => (
-                                    <button key={caseItem.caseId} onClick={() => onSelectCase(caseItem.caseId, 'schedule')} className="w-full text-left bg-white border border-blue-100 rounded-sm px-3 py-2 hover:border-blue-300">
-                                        <div className="font-bold text-sm text-zinc-900 truncate">{caseItem.customerName}</div>
-                                        <div className="text-xs text-zinc-500 truncate">{caseItem.address || '待補地址'} / {caseItem.buildingContext || '待補建物資訊'}</div>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="border border-amber-200 rounded-lg p-4 bg-amber-50/20">
-                            <div className="text-xs font-black text-amber-700 uppercase tracking-wider mb-3">請款/收款追蹤 ({paymentQueue.length})</div>
-                            <div className="space-y-2">
-                                {paymentQueue.slice(0, 3).map((caseItem) => (
-                                    <button key={caseItem.caseId} onClick={() => onSelectCase(caseItem.caseId, 'quote')} className="w-full text-left bg-white border border-amber-100 rounded-sm px-3 py-2 hover:border-amber-300">
-                                        <div className="font-bold text-sm text-zinc-900 truncate">{caseItem.customerName}</div>
-                                        <div className="text-xs text-zinc-500 truncate">{normalizeCaseStatus(caseItem.status) === CaseStatus.FINAL_PAYMENT ? '待收尾款' : '頭期尚未入帳'}</div>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Empty State */}
-                {activeToday.length === 0 && pendingStart.length === 0 && planningQueue.length === 0 && paymentQueue.length === 0 && (
-                    <div className="text-center py-8">
-                        <div className="text-4xl mb-3">🎉</div>
-                        <div className="text-zinc-500 font-bold mb-1">今日無排程施工</div>
-                        <div className="text-xs text-zinc-300 uppercase tracking-widest">NO TASKS SCHEDULED TODAY</div>
-                    </div>
-                )}
+            <div className="rounded-sm border border-white/10 bg-white/5 p-3">
+              <div className="text-zinc-500">待進場</div>
+              <div className="mt-1 text-xl text-white">{planningQueue.length}</div>
             </div>
+            <div className="rounded-sm border border-white/10 bg-white/5 p-3">
+              <div className="text-zinc-500">待請款</div>
+              <div className="mt-1 text-xl text-white">{paymentQueue.length}</div>
+            </div>
+          </div>
         </div>
-    );
+
+        {primaryFocus && primaryAction ? (
+          <div className="mt-5 rounded-sm border border-white/10 bg-white/5 p-4 md:p-5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="min-w-0">
+                <div className="text-[9px] font-black uppercase tracking-[0.24em] text-zinc-500">PRIMARY ACTION</div>
+                <div className="mt-2 text-xl font-black tracking-tight truncate">{primaryFocus.customerName}</div>
+                <div className="mt-1 text-sm text-zinc-300">{getCasePrimarySummary(primaryFocus)}</div>
+                <div className="mt-2 text-xs text-zinc-400 truncate">{primaryAction.description}{primaryFocus.address ? ` / ${primaryFocus.address}` : ''}</div>
+              </div>
+              <button
+                onClick={() => onSelectCase(primaryFocus.caseId, primaryAction.tab)}
+                className="inline-flex items-center justify-center gap-2 rounded-sm border border-white/20 bg-white px-4 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-zinc-950 transition-colors hover:bg-zinc-100"
+              >
+                {primaryAction.label}
+                <ArrowRight size={16} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-5 rounded-sm border border-dashed border-white/15 bg-white/5 p-5 text-sm text-zinc-400">
+            目前沒有今日必做項目，可改為整理資料、追蹤回款或檢查保固排程。
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 md:p-6 xl:grid-cols-4">
+        <section className="rounded-sm border border-emerald-200 bg-emerald-50/60 p-4">
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-700">
+            <Clock3 size={14} /> 今日施工
+          </div>
+          <div className="mt-3 space-y-3">
+            {activeToday.length > 0 ? activeToday.slice(0, 3).map(({ case: item, todayTasks, progress, currentDay, totalDays }) => (
+              <button key={item.caseId} onClick={() => onSelectCase(item.caseId, 'log')} className="w-full rounded-sm border border-emerald-200 bg-white p-3 text-left transition-colors hover:border-emerald-400">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-black text-zinc-950">{item.customerName}</div>
+                    <div className="mt-1 line-clamp-2 text-xs text-zinc-600">{todayTasks.map((task) => task.taskName).join(' / ')}</div>
+                  </div>
+                  <div className="text-right text-[10px] font-black text-emerald-700">{progress}%</div>
+                </div>
+                <div className="mt-2 text-[10px] text-zinc-500">{currentDay > 0 && totalDays > 0 ? `第 ${currentDay} / ${totalDays} 天` : '今日施工排程'}</div>
+              </button>
+            )) : <EmptyTaskState text="今天沒有施工排程" />}
+          </div>
+        </section>
+
+        <section className="rounded-sm border border-amber-200 bg-amber-50/60 p-4">
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-amber-700">
+            <MapPin size={14} /> 待開工/評估
+          </div>
+          <div className="mt-3 space-y-3">
+            {pendingStart.length > 0 ? pendingStart.map((item) => {
+              const action = getCaseNextAction(item);
+              return (
+                <button key={item.caseId} onClick={() => onSelectCase(item.caseId, action.tab)} className="w-full rounded-sm border border-amber-200 bg-white p-3 text-left transition-colors hover:border-amber-400">
+                  <div className="text-sm font-black text-zinc-950">{item.customerName}</div>
+                  <div className="mt-1 text-xs text-zinc-600 truncate">{item.address || '待安排現場評估'}</div>
+                  <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-amber-700">{action.label}</div>
+                </button>
+              );
+            }) : <EmptyTaskState text="目前沒有待開工案件" />}
+          </div>
+        </section>
+
+        <section className="rounded-sm border border-blue-200 bg-blue-50/60 p-4">
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-blue-700">
+            <ArrowRight size={14} /> 備料/待進場
+          </div>
+          <div className="mt-3 space-y-3">
+            {planningQueue.length > 0 ? planningQueue.map((item) => (
+              <button key={item.caseId} onClick={() => onSelectCase(item.caseId, 'schedule')} className="w-full rounded-sm border border-blue-200 bg-white p-3 text-left transition-colors hover:border-blue-400">
+                <div className="text-sm font-black text-zinc-950">{item.customerName}</div>
+                <div className="mt-1 text-xs text-zinc-600 truncate">{item.address || item.buildingContext || '待補進場資訊'}</div>
+                <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-blue-700">安排排程 / 備料</div>
+              </button>
+            )) : <EmptyTaskState text="目前沒有待進場案件" />}
+          </div>
+        </section>
+
+        <section className="rounded-sm border border-rose-200 bg-rose-50/60 p-4">
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-rose-700">
+            <WalletCards size={14} /> 請款/保固追蹤
+          </div>
+          <div className="mt-3 space-y-3">
+            {paymentQueue.length > 0 ? paymentQueue.map((item) => {
+              const action = getCaseNextAction(item);
+              return (
+                <button key={item.caseId} onClick={() => onSelectCase(item.caseId, action.tab)} className="w-full rounded-sm border border-rose-200 bg-white p-3 text-left transition-colors hover:border-rose-400">
+                  <div className="text-sm font-black text-zinc-950">{item.customerName}</div>
+                  <div className="mt-1 text-xs text-zinc-600">{action.description}</div>
+                  <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-rose-700">{action.label}</div>
+                </button>
+              );
+            }) : <EmptyTaskState text="目前沒有待請款案件" icon={<ShieldAlert size={14} />} />}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
 };
+
+const EmptyTaskState = ({ text, icon }: { text: string; icon?: React.ReactNode }) => (
+  <div className="rounded-sm border border-dashed border-current/20 bg-white/70 px-3 py-4 text-center text-xs text-zinc-500">
+    <div className="mb-1 flex items-center justify-center gap-1 text-zinc-300">{icon}</div>
+    {text}
+  </div>
+);

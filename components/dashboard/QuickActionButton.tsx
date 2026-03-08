@@ -1,9 +1,22 @@
 import React from 'react';
 
-export const QuickActionButton = React.memo(({ onClick, icon, title, subtitle }: { onClick: () => void; icon: React.ReactNode; title: string; subtitle: string }) => (
-  <button onClick={onClick} className="group relative h-20 md:h-32 bg-white border border-zinc-200 rounded-sm p-4 md:p-6 text-left hover:border-zinc-950 transition-all shadow-sm active:scale-95 overflow-hidden">
-    <div className="absolute top-4 right-4 text-zinc-100 md:group-hover:text-zinc-950 transition-all">{icon}</div>
-    <div className="text-[7px] md:text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-0.5 leading-none">{title}</div>
-    <div className="text-sm md:text-lg font-black text-zinc-950 tracking-tighter uppercase whitespace-nowrap leading-none">{subtitle}</div>
+export const QuickActionButton = React.memo(({
+  onClick,
+  icon,
+  title,
+  subtitle,
+  badge,
+}: {
+  onClick: () => void;
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  badge?: string;
+}) => (
+  <button onClick={onClick} className="group relative min-h-[112px] rounded-sm border border-zinc-200 bg-white p-4 text-left shadow-sm transition-all hover:border-zinc-950 active:scale-95 md:min-h-[132px] md:p-5">
+    <div className="absolute right-4 top-4 text-zinc-200 transition-colors group-hover:text-zinc-950">{icon}</div>
+    <div className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400">{title}</div>
+    <div className="mt-2 text-lg font-black tracking-tight text-zinc-950">{subtitle}</div>
+    {badge && <div className="mt-4 inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">{badge}</div>}
   </button>
 ));
