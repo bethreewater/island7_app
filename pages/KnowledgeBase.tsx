@@ -667,14 +667,16 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
                 <Input
                   label="薪資單價（每小時） / HOURLY RATE"
                   type="number"
+                  step="0.1"
                   value={editingMethod.laborHourlyRate || ''}
-                  onChange={e => setEditingMethod({ ...editingMethod, laborHourlyRate: parseInt(e.target.value, 10) || 0 })}
+                  onChange={e => setEditingMethod({ ...editingMethod, laborHourlyRate: parseFloat(e.target.value) || 0 })}
                 />
                 <Input
                   label="預估工時（小時） / HOURS"
                   type="number"
+                  step="0.1"
                   value={editingMethod.laborHours || ''}
-                  onChange={e => setEditingMethod({ ...editingMethod, laborHours: parseInt(e.target.value, 10) || 0 })}
+                  onChange={e => setEditingMethod({ ...editingMethod, laborHours: parseFloat(e.target.value) || 0 })}
                 />
                 <div className="bg-zinc-950 text-white rounded-sm p-4">
                   <div className="text-[9px] font-black text-zinc-300 uppercase tracking-widest">預估人事費 / EST. LABOR COST</div>
