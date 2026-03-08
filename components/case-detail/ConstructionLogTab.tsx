@@ -2,12 +2,13 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
     X, Plus, Save, History, Play, Pause, SkipForward, Square, CheckCircle2,
     CloudRain, Cloud, Sun, Edit3, Trash2, Clock, Coffee, Package,
-    ChevronDown, ChevronRight, ChevronLeft, CalendarDays
+    ChevronDown, ChevronRight, ChevronLeft, CalendarDays, FileText
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ScheduleTask, ConstructionLog } from '../../types';
 import { Button, Card, Input, Select, ImageUploader } from '../InputComponents';
 import { STANDARD_LOG_ACTIONS } from '../../constants';
+import { ExportButton } from './ExportButton';
 
 // Local timezone date helper (avoids UTC off-by-one issues)
 const toLocalDate = (d: Date = new Date()) => {
@@ -437,8 +438,9 @@ const CalendarView: React.FC<{
 export const ConstructionLogTab: React.FC<{
     schedule: ScheduleTask[];
     logs: ConstructionLog[];
-    onUpdate: (logs: ConstructionLog[], updatedSchedule?: ScheduleTask[]) => void
-}> = ({ schedule, logs, onUpdate }) => {
+    onUpdate: (logs: ConstructionLog[], updatedSchedule?: ScheduleTask[]) => void;
+    onExportPdf: () => Promise<void>;
+}> = ({ schedule, logs, onUpdate, onExportPdf }) => {
     const [editingLogId, setEditingLogId] = useState<string | null>(null);
     const [logForm, setLogForm] = useState<Partial<ConstructionLog>>({});
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -610,7 +612,8 @@ export const ConstructionLogTab: React.FC<{
                     <h2 className="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-0.5 leading-none">Field Management</h2>
                     <div className="text-xl md:text-2xl font-black text-zinc-950 tracking-tighter uppercase leading-none">施工日誌 / DAILY LOG</div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap justify-end">
+                    <ExportButton onClick={onExportPdf} icon={<FileText size={16} />} label="匯出 PDF / EXPORT" />
                     <Button variant="secondary" onClick={autoSyncFromSchedule} className="border-zinc-950"><History size={16} /> 同步</Button>
                     {!editingLogId && <Button onClick={startNew}><Plus size={16} /> 新增紀錄</Button>}
                 </div>

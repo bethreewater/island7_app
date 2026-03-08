@@ -799,6 +799,10 @@ export const CaseDetail: React.FC<{
             <ConstructionLogTab
               schedule={localData.schedule || []}
               logs={localData.logs || []}
+              onExportPdf={async () => {
+                const { generateConstructionLogPDF } = await getPDFService();
+                return generateConstructionLogPDF(localData, 'save');
+              }}
               onUpdate={(newLogs, updatedSchedule) => {
                 const newData = { ...localData, logs: newLogs };
                 if (updatedSchedule) {
