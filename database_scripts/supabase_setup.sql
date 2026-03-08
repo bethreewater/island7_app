@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS methods (
   "englishName" text,
   "defaultUnit" text,
   "defaultUnitPrice" numeric DEFAULT 0,
+  "laborHourlyRate" numeric DEFAULT 0,
+  "laborHours" numeric DEFAULT 0,
   "description" text,
   "steps" jsonb DEFAULT '[]'::jsonb,
   "estimatedDays" numeric DEFAULT 0,

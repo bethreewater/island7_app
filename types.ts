@@ -93,6 +93,8 @@ export interface MethodItem {
   englishName: string;
   defaultUnit: string;
   defaultUnitPrice: number;
+  laborHourlyRate?: number;
+  laborHours?: number;
   description?: string;
   steps: MethodStep[];
   estimatedDays: number;

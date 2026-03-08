@@ -5,7 +5,7 @@ import { Layout } from '../components/Layout';
 import { Card, Button, Input, Select } from '../components/InputComponents';
 import { MethodItem, ServiceCategory, MethodStep, Material, MethodRecipe, MaterialCategory, NavigationView, WarrantyType } from '../types';
 import { getMethods, saveMethod, deleteMethod, getMaterials, getRecipes, upsertRecipe, deleteRecipe, upsertMaterial, deleteMaterial } from '../services/storageService';
-import { Plus, Trash2, Save, ChevronRight, Layers, Clock, ArrowLeft, FolderOpen } from 'lucide-react';
+import { Plus, Trash2, Save, ChevronRight, Layers, Clock, ArrowLeft, FolderOpen, Briefcase, ShieldCheck, DollarSign, ChevronDown, ChevronUp } from 'lucide-react';
 
 
 // -- RecipeManager Component (Defined first to avoid hoisting issues) --
@@ -53,7 +53,7 @@ const RecipeManager = ({ methodId }: { methodId: string }) => {
       materialId: selectedMatId,
       quantity: category === 'fixed' ? qty : 0,
       category,
-      consumptionRate: category === 'variable' ? rate : 0
+      consumptionRate: category === 'fixed' ? 0 : rate
     };
 
     await upsertRecipe(newRecipe);
@@ -76,7 +76,7 @@ const RecipeManager = ({ methodId }: { methodId: string }) => {
     <Card title="標準備料配方 / MATERIAL RECIPES" action={<Button onClick={() => setShowAdd(true)} variant="outline" className="text-[9px] font-black tracking-widest py-1.5 uppercase"><Plus size={14} className="mr-1" /> 新增配方 / ADD RECIPE</Button>}>
       <div className="space-y-4">
         <div className="bg-zinc-50 p-3 rounded-sm flex justify-between items-center text-xs font-black uppercase tracking-widest text-zinc-400">
-          <span>每坪材料成本 / MAT COST PER UNIT</span>
+          <span>每坪耗材成本 / CONSUMABLE COST PER UNIT</span>
           <span className="text-zinc-950 text-base">${Math.round(costPerPing).toLocaleString()}</span>
         </div>
 
@@ -194,6 +194,7 @@ const RecipeManager = ({ methodId }: { methodId: string }) => {
               </table>
             </div>
           </div>
+
         </div>
       </div>
       <ConfirmDialog
@@ -445,12 +446,24 @@ const MaterialCard: React.FC<{ material: Material, onEdit: (m: Material) => void
   </div>
 );
 
+const SchemeMetric: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({ icon, label, value }) => (
+  <div className="rounded-sm border border-zinc-200 bg-white/90 p-4 shadow-sm">
+    <div className="flex items-center gap-2 text-zinc-400">
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-zinc-700">{icon}</div>
+      <div className="text-[9px] font-black uppercase tracking-[0.24em]">{label}</div>
+    </div>
+    <div className="mt-3 text-lg font-black tracking-tight text-zinc-950 break-words">{value}</div>
+  </div>
+);
+
 
 export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: NavigationView) => void }> = ({ onBack, onNavigate }) => {
   const [activeTab, setActiveTab] = useState<'schemes' | 'materials'>('schemes');
   const [methods, setMethods] = useState<MethodItem[]>([]);
   const [editingMethod, setEditingMethod] = useState<MethodItem | null>(null);
+  const [pristineMethod, setPristineMethod] = useState<MethodItem | null>(null);
   const [pendingDeleteMethodId, setPendingDeleteMethodId] = useState<string | null>(null);
+  const [expandedStepIdx, setExpandedStepIdx] = useState<number | null>(0);
 
   useEffect(() => {
     loadMethods();
@@ -459,6 +472,18 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
   const loadMethods = async () => {
     const data = await getMethods();
     setMethods(data);
+  };
+
+  const closeMethodEditor = () => {
+    setEditingMethod(null);
+    setPristineMethod(null);
+    setExpandedStepIdx(0);
+  };
+
+  const openMethodEditor = (method: MethodItem) => {
+    setEditingMethod(method);
+    setPristineMethod(method);
+    setExpandedStepIdx(0);
   };
 
   const groupedMethods = useMemo(() => {
@@ -479,6 +504,8 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
       englishName: 'New Scheme',
       defaultUnit: '坪',
       defaultUnitPrice: 0,
+      laborHourlyRate: 0,
+      laborHours: 0,
       estimatedDays: 1,
       warrantyType: 'leak_handled',
       warrantyMonths: 12,
@@ -488,8 +515,24 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
       warrantyIgnoredText: '不提供保固',
       steps: [{ name: '第一工序', description: '', prepMinutes: 0, execMinutes: 60 }]
     };
-    setEditingMethod(newMethod);
+    openMethodEditor(newMethod);
   };
+
+  const isDirty = useMemo(() => {
+    if (!editingMethod || !pristineMethod) return false;
+    return JSON.stringify(editingMethod) !== JSON.stringify(pristineMethod);
+  }, [editingMethod, pristineMethod]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!isDirty) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
 
   const handleSave = async () => {
     if (editingMethod) {
@@ -511,7 +554,7 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
         warrantyVisits: fallbackVisits,
       };
       await saveMethod(toSave);
-      setEditingMethod(null);
+      closeMethodEditor();
       loadMethods();
     }
   };
@@ -541,6 +584,10 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
     return `${remainMonths} 個月`;
   };
 
+  const laborCost = editingMethod ? ((editingMethod.laborHourlyRate || 0) * (editingMethod.laborHours || 0)) : 0;
+  const totalStepMinutes = editingMethod ? editingMethod.steps.reduce((sum, step) => sum + step.prepMinutes + step.execMinutes, 0) : 0;
+  const warrantyType = editingMethod?.warrantyType || 'leak_handled';
+
   return (
     <Layout title="知識庫 / KNOWLEDGE BASE" onBack={onBack} onNavigate={onNavigate}>
       {/* Top Tab Bar */}
@@ -567,50 +614,109 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
         </div>
       ) : editingMethod ? (
         <div className="space-y-6 animate-in slide-in-from-right duration-300 pb-20">
-          <div className="flex justify-between items-center">
-            <button onClick={() => setEditingMethod(null)} className="text-gray-400 hover:text-black flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
-              <ArrowLeft size={16} /> 返回清單 / BACK TO LIST
-            </button>
-            <div className="flex gap-2">
-              <Button onClick={() => handleDelete(editingMethod.id)} variant="danger" className="bg-red-50 text-red-600 border-red-100 px-6 font-black uppercase text-xs">刪除 / DELETE</Button>
-              <Button onClick={handleSave} className="flex gap-2 bg-black px-8 font-black uppercase text-xs tracking-widest">儲存變更 / SAVE</Button>
+          <div className="border border-zinc-200 rounded-sm bg-gradient-to-br from-white via-zinc-50 to-zinc-100 p-5 md:p-6 shadow-sm">
+            <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+              <div className="space-y-3 min-w-0">
+                <button onClick={closeMethodEditor} className="text-zinc-400 hover:text-black flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
+                  <ArrowLeft size={16} /> 返回清單 / BACK TO LIST
+                </button>
+                <div>
+                  <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-2">ENGINEERING SCHEME</div>
+                  <h1 className="text-2xl md:text-4xl font-black tracking-tight text-zinc-950 break-words">{editingMethod.name}</h1>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                    <span className="px-2 py-1 rounded-full bg-white border border-zinc-200">{editingMethod.englishName || 'UNNAMED'}</span>
+                    <span className="px-2 py-1 rounded-full bg-white border border-zinc-200">{editingMethod.category}</span>
+                    <span className={`px-2 py-1 rounded-full border ${isDirty ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>{isDirty ? '未儲存變更' : '已同步'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 shrink-0">
+                <Button onClick={() => handleDelete(editingMethod.id)} variant="danger" className="bg-red-50 text-red-600 border-red-100 px-6 font-black uppercase text-xs">刪除 / DELETE</Button>
+                <Button onClick={handleSave} className="flex gap-2 bg-black px-8 font-black uppercase text-xs tracking-widest"><Save size={14} /> 儲存變更 / SAVE</Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
+              <SchemeMetric icon={<DollarSign size={16} />} label="預設單價" value={`$${editingMethod.defaultUnitPrice.toLocaleString()} / ${editingMethod.defaultUnit}`} />
+              <SchemeMetric icon={<Clock size={16} />} label="預估工期" value={`${editingMethod.estimatedDays} 天`} />
+              <SchemeMetric icon={<Briefcase size={16} />} label="預估人事費" value={`$${laborCost.toLocaleString()}`} />
+              <SchemeMetric icon={<ShieldCheck size={16} />} label="保固規則" value="3 種情境設定" />
             </div>
           </div>
 
-          <Card title="方案基礎資訊 / BASIC CONFIGURATION">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Input label="方案名稱 (中) / NAME (CN)" value={editingMethod.name} onChange={e => setEditingMethod({ ...editingMethod, name: e.target.value })} />
-              <Input label="方案名稱 (英) / NAME (EN)" value={editingMethod.englishName} onChange={e => setEditingMethod({ ...editingMethod, englishName: e.target.value })} />
-              <Select label="工程大類 / CATEGORY" value={editingMethod.category} onChange={e => setEditingMethod({ ...editingMethod, category: e.target.value as ServiceCategory })}>
-                {Object.values(ServiceCategory).map(cat => <option key={cat} value={cat}>{cat}</option>)}
-              </Select>
-              <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 xl:grid-cols-[1.3fr_0.7fr] gap-6">
+            <Card title="商務設定 / COMMERCIAL CONFIG">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Input label="方案名稱 (中) / NAME (CN)" value={editingMethod.name} onChange={e => setEditingMethod({ ...editingMethod, name: e.target.value })} />
+                <Input label="方案名稱 (英) / NAME (EN)" value={editingMethod.englishName} onChange={e => setEditingMethod({ ...editingMethod, englishName: e.target.value })} />
+                <Select label="工程大類 / CATEGORY" value={editingMethod.category} onChange={e => setEditingMethod({ ...editingMethod, category: e.target.value as ServiceCategory })}>
+                  {Object.values(ServiceCategory).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </Select>
                 <Input label="計價單位 / UNIT" value={editingMethod.defaultUnit} onChange={e => setEditingMethod({ ...editingMethod, defaultUnit: e.target.value })} />
-                <Input label="預設單價 / UNIT PRICE" type="number" value={editingMethod.defaultUnitPrice} onChange={e => setEditingMethod({ ...editingMethod, defaultUnitPrice: parseInt(e.target.value) || 0 })} />
+                <Input label="預設單價 / UNIT PRICE" type="number" value={editingMethod.defaultUnitPrice} onChange={e => setEditingMethod({ ...editingMethod, defaultUnitPrice: parseInt(e.target.value, 10) || 0 })} />
+                <div className="bg-zinc-50 border border-zinc-200 rounded-sm p-4 flex flex-col justify-center">
+                  <div className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">施工步驟總分鐘 / TOTAL STEP MINUTES</div>
+                  <div className="text-2xl font-black text-zinc-900 mt-2">{totalStepMinutes.toLocaleString()}</div>
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+
+            <Card title="人事費用 / LABOR COST">
+              <div className="space-y-4">
+                <Input
+                  label="薪資單價（每小時） / HOURLY RATE"
+                  type="number"
+                  value={editingMethod.laborHourlyRate || ''}
+                  onChange={e => setEditingMethod({ ...editingMethod, laborHourlyRate: parseInt(e.target.value, 10) || 0 })}
+                />
+                <Input
+                  label="預估工時（小時） / HOURS"
+                  type="number"
+                  value={editingMethod.laborHours || ''}
+                  onChange={e => setEditingMethod({ ...editingMethod, laborHours: parseInt(e.target.value, 10) || 0 })}
+                />
+                <div className="bg-zinc-950 text-white rounded-sm p-4">
+                  <div className="text-[9px] font-black text-zinc-300 uppercase tracking-widest">預估人事費 / EST. LABOR COST</div>
+                  <div className="text-3xl font-black tracking-tight mt-2">${laborCost.toLocaleString()}</div>
+                  <div className="text-xs text-zinc-400 mt-2">用於財務總覽的人事成本試算</div>
+                </div>
+              </div>
+            </Card>
+          </div>
 
           {/* 保固設定 / WARRANTY CONFIG */}
           <Card title="保固設定 / WARRANTY CONFIG">
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div>
-                  <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1 block">評估預設狀況 / DEFAULT TYPE</label>
-                  <select
-                    className="w-full bg-white border border-zinc-200 rounded-sm p-2 text-sm font-bold outline-none focus:border-black transition-colors"
-                    value={editingMethod.warrantyType || 'leak_handled'}
-                    onChange={e => setEditingMethod({ ...editingMethod, warrantyType: e.target.value as WarrantyType })}
-                  >
-                    <option value="leak_handled">有處理漏水源</option>
-                    <option value="leak_unhandled">無法處理漏水源</option>
-                    <option value="leak_ignored">不處理漏水源</option>
-                  </select>
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  { key: 'leak_handled', title: '有處理漏水源', desc: '正常保固情境，直接設定保固月數。', tone: 'emerald' },
+                  { key: 'leak_unhandled', title: '無法處理漏水源', desc: '需要保固次數與較保守的條件。', tone: 'amber' },
+                  { key: 'leak_ignored', title: '不處理漏水源', desc: '只顯示說明文字，不提供標準保固。', tone: 'rose' },
+                ].map((option) => {
+                  const active = warrantyType === option.key;
+                  const toneClass = option.tone === 'emerald'
+                    ? active ? 'border-emerald-500 bg-emerald-50' : 'border-zinc-200 bg-white'
+                    : option.tone === 'amber'
+                      ? active ? 'border-amber-500 bg-amber-50' : 'border-zinc-200 bg-white'
+                      : active ? 'border-rose-500 bg-rose-50' : 'border-zinc-200 bg-white';
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => setEditingMethod({ ...editingMethod, warrantyType: option.key as WarrantyType })}
+                      className={`text-left rounded-sm border p-4 transition-all hover:border-zinc-950 ${toneClass}`}
+                    >
+                      <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2">DEFAULT TYPE</div>
+                      <div className="text-base font-black text-zinc-900">{option.title}</div>
+                      <div className="text-sm text-zinc-500 mt-2">{option.desc}</div>
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white border border-zinc-200 rounded-sm p-4 space-y-3">
+                <div className={`bg-white border rounded-sm p-4 space-y-3 ${warrantyType === 'leak_handled' ? 'border-zinc-950 shadow-sm' : 'border-zinc-200'}`}>
                   <div className="text-[10px] font-black text-zinc-700 tracking-tight">有處理漏水源 / HANDLED</div>
                   <Input
                     label="保固月數 / MONTHS"
@@ -620,7 +726,7 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
                   />
                 </div>
 
-                <div className="bg-white border border-zinc-200 rounded-sm p-4 space-y-3">
+                <div className={`bg-white border rounded-sm p-4 space-y-3 ${warrantyType === 'leak_unhandled' ? 'border-zinc-950 shadow-sm' : 'border-zinc-200'}`}>
                   <div className="text-[10px] font-black text-zinc-700 tracking-tight">無法處理漏水源 / UNHANDLED</div>
                   <Input
                     label="保固月數 / MONTHS"
@@ -636,7 +742,7 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
                   />
                 </div>
 
-                <div className="bg-white border border-zinc-200 rounded-sm p-4 space-y-3">
+                <div className={`bg-white border rounded-sm p-4 space-y-3 ${warrantyType === 'leak_ignored' ? 'border-zinc-950 shadow-sm' : 'border-zinc-200'}`}>
                   <div className="text-[10px] font-black text-zinc-700 tracking-tight">不處理漏水源 / IGNORED</div>
                   <Input
                     label="顯示文案 / DISPLAY TEXT"
@@ -670,21 +776,34 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
           <Card title="標準施工程序 / CONSTRUCTION STEPS" action={<Button onClick={addStep} variant="outline" className="text-[9px] font-black tracking-widest py-1.5 uppercase"><Plus size={14} className="mr-1" /> 新增工序 / ADD STEP</Button>}>
             <div className="space-y-4">
               {editingMethod.steps.map((step, idx) => (
-                <div key={idx} className="flex gap-4 p-5 border border-gray-100 rounded-md bg-white items-start shadow-sm hover:border-gray-300 transition-colors">
-                  <div className="bg-black text-white w-6 h-6 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 mt-1">
-                    {idx + 1}
-                  </div>
-                  <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="md:col-span-2">
-                      <Input label="工序名稱 / TASK NAME" value={step.name} onChange={e => updateStep(idx, 'name', e.target.value)} />
+                <div key={idx} className="border border-zinc-200 rounded-sm bg-white shadow-sm overflow-hidden">
+                  <div className="flex items-center justify-between gap-4 px-4 py-3 bg-zinc-50 border-b border-zinc-100">
+                    <button type="button" onClick={() => setExpandedStepIdx(expandedStepIdx === idx ? null : idx)} className="flex items-center gap-3 text-left min-w-0">
+                      <div className="bg-black text-white w-7 h-7 rounded-full flex items-center justify-center font-black text-[10px] shrink-0">{idx + 1}</div>
+                      <div className="min-w-0">
+                        <div className="font-black text-zinc-900 truncate">{step.name || `工序 ${idx + 1}`}</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400">PREP {step.prepMinutes}M / EXEC {step.execMinutes}M / TOTAL {step.prepMinutes + step.execMinutes}M</div>
+                      </div>
+                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => setExpandedStepIdx(expandedStepIdx === idx ? null : idx)} className="text-zinc-400 hover:text-zinc-950 p-2 transition-colors" aria-label={expandedStepIdx === idx ? '收合工序' : '展開工序'}>
+                        {expandedStepIdx === idx ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                      </button>
+                      <button onClick={() => setEditingMethod({ ...editingMethod, steps: editingMethod.steps.filter((_, i) => i !== idx) })} className="text-zinc-300 hover:text-red-500 p-2 transition-colors" aria-label="刪除工序"><Trash2 size={18} /></button>
                     </div>
-                    <Input label="準備期 / PREP (M)" type="number" value={step.prepMinutes} onChange={e => updateStep(idx, 'prepMinutes', parseInt(e.target.value) || 0)} />
-                    <Input label="施作期 / EXEC (M)" type="number" value={step.execMinutes} onChange={e => updateStep(idx, 'execMinutes', parseInt(e.target.value) || 0)} />
-                    <div className="md:col-span-4">
-                      <Input label="工藝說明 / DESCRIPTION" value={step.description} onChange={e => updateStep(idx, 'description', e.target.value)} />
-                    </div>
                   </div>
-                  <button onClick={() => setEditingMethod({ ...editingMethod, steps: editingMethod.steps.filter((_, i) => i !== idx) })} className="text-gray-200 hover:text-red-500 p-2 mt-4 transition-colors"><Trash2 size={18} /></button>
+                  {expandedStepIdx === idx && (
+                    <div className="p-4 grid grid-cols-1 md:grid-cols-4 gap-4 animate-in fade-in duration-200">
+                      <div className="md:col-span-2">
+                        <Input label="工序名稱 / TASK NAME" value={step.name} onChange={e => updateStep(idx, 'name', e.target.value)} />
+                      </div>
+                      <Input label="準備期 / PREP (M)" type="number" value={step.prepMinutes} onChange={e => updateStep(idx, 'prepMinutes', parseInt(e.target.value, 10) || 0)} />
+                      <Input label="施作期 / EXEC (M)" type="number" value={step.execMinutes} onChange={e => updateStep(idx, 'execMinutes', parseInt(e.target.value, 10) || 0)} />
+                      <div className="md:col-span-4">
+                        <Input label="工藝說明 / DESCRIPTION" value={step.description} onChange={e => updateStep(idx, 'description', e.target.value)} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
               {editingMethod.steps.length === 0 && <div className="text-center py-10 text-gray-300 font-black tracking-widest text-[10px] uppercase">請點擊上方按鈕新增標準工序 / NO STEPS</div>}
@@ -693,11 +812,12 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
 
         </div>
       ) : (
-        <div className="space-y-8 pb-20">
-          <div className="flex justify-between items-end">
+          <div className="space-y-8 pb-20">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
             <div>
               <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Standardized Database</h2>
               <div className="text-3xl font-black text-black tracking-tighter">工程方案庫 / SCHEMES</div>
+              <div className="text-sm text-zinc-500 mt-2">先比較價格、工期、人事費與保固，再決定是否點進去編輯。</div>
             </div>
             <Button onClick={startNewMethod} className="flex gap-3 bg-black px-6 font-black uppercase text-[10px] tracking-[0.2em] py-4"><Plus size={18} /> 新增方案 / NEW SCHEME</Button>
           </div>
@@ -714,20 +834,29 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {items.map(m => (
-                      <div key={m.id} className="group bg-white border border-gray-100 p-6 rounded-md hover:border-black transition-all cursor-pointer shadow-sm hover:shadow-md flex flex-col justify-between" onClick={() => setEditingMethod(m)}>
+                      <div key={m.id} className="group bg-white border border-gray-100 p-6 rounded-md hover:border-black transition-all cursor-pointer shadow-sm hover:shadow-md flex flex-col justify-between" onClick={() => openMethodEditor(m)}>
                         <div>
                           <div className="flex justify-between items-start mb-2">
                             <div className="text-[8px] font-black text-gray-400 uppercase tracking-widest">{m.englishName}</div>
                             <div className="text-gray-200 group-hover:text-black transition-colors"><ChevronRight size={18} /></div>
                           </div>
                           <h4 className="font-black text-lg text-black tracking-tight mb-6 uppercase">{m.name}</h4>
-                        </div>
-                        <div className="flex items-center justify-between text-[9px] font-black pt-4 border-t border-gray-50 uppercase tracking-widest">
-                          <div className="flex items-center gap-4">
-                            <span className="text-gray-400 flex items-center gap-1.5"><Layers size={12} /> {m.steps.length} STEPS</span>
-                            <span className="text-gray-400 flex items-center gap-1.5"><Clock size={12} /> {m.estimatedDays} DAYS</span>
+                          <div className="flex flex-wrap gap-2 mb-5 text-[9px] font-black uppercase tracking-widest">
+                            <span className="px-2 py-1 rounded-full bg-zinc-50 border border-zinc-200 text-zinc-500">{m.category}</span>
+                            <span className="px-2 py-1 rounded-full bg-zinc-50 border border-zinc-200 text-zinc-500">{m.warrantyType === 'leak_handled' ? '正常保固' : m.warrantyType === 'leak_unhandled' ? '限次保固' : '不保固'}</span>
                           </div>
-                          <span className="text-black font-black tracking-tighter text-sm">${m.defaultUnitPrice.toLocaleString()} / {m.defaultUnit}</span>
+                        </div>
+                        <div className="space-y-3 pt-4 border-t border-gray-50 text-[9px] font-black uppercase tracking-widest">
+                          <div className="grid grid-cols-2 gap-2 text-zinc-500">
+                            <span className="flex items-center gap-1.5"><Layers size={12} /> {m.steps.length} Steps</span>
+                            <span className="flex items-center gap-1.5"><Clock size={12} /> {m.estimatedDays} Days</span>
+                            <span className="flex items-center gap-1.5"><Briefcase size={12} /> 人事 ${(((m.laborHourlyRate || 0) * (m.laborHours || 0))).toLocaleString()}</span>
+                            <span className="flex items-center gap-1.5"><ShieldCheck size={12} /> {m.warrantyHandledMonths ?? m.warrantyMonths ?? 12} Months</span>
+                          </div>
+                          <div className="flex items-end justify-between gap-3">
+                            <div className="text-black font-black tracking-tighter text-sm">${m.defaultUnitPrice.toLocaleString()} / {m.defaultUnit}</div>
+                            <div className="text-zinc-300 group-hover:text-black transition-colors flex items-center gap-1">查看設定 <ChevronRight size={14} /></div>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -748,7 +877,7 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
           if (!pendingDeleteMethodId) return;
           await deleteMethod(pendingDeleteMethodId);
           setPendingDeleteMethodId(null);
-          setEditingMethod(null);
+          closeMethodEditor();
           loadMethods();
         }}
       />

@@ -1,21 +1,23 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Zone, MethodRecipe } from '../../types';
-import { getRecipes } from '../../services/storageService';
+import { MethodItem, MethodRecipe, Zone } from '../../types';
+import { getMethods, getRecipes } from '../../services/storageService';
 
 export const MaterialList: React.FC<{ zones: Zone[] }> = ({ zones }) => {
     const [recipes, setRecipes] = useState<MethodRecipe[]>([]);
+    const [methods, setMethods] = useState<MethodItem[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const load = async () => {
-            const data = await getRecipes();
-            setRecipes(data);
+            const [recipeData, methodData] = await Promise.all([getRecipes(), getMethods()]);
+            setRecipes(recipeData);
+            setMethods(methodData);
             setLoading(false);
         };
         load();
     }, []);
 
-    const { materials, tools, totalCost } = useMemo(() => {
+    const { consumables, tools, totalConsumableCost, totalLaborCost, totalCost } = useMemo(() => {
         const totals: Record<string, { name: string, unit: string, qty: number, category: string, cost: number }> = {};
 
         zones.forEach(zone => {
@@ -59,16 +61,24 @@ export const MaterialList: React.FC<{ zones: Zone[] }> = ({ zones }) => {
         });
 
         const allItems = Object.values(totals);
+        const consumables = allItems.filter(i => i.category === 'variable').sort((a, b) => b.cost - a.cost);
+        const tools = allItems.filter(i => i.category === 'fixed').sort((a, b) => b.cost - a.cost);
+        const totalLaborCost = zones.reduce((sum, zone) => {
+            const method = methods.find((entry) => entry.id === zone.methodId);
+            return sum + ((method?.laborHourlyRate || 0) * (method?.laborHours || 0));
+        }, 0);
         return {
-            materials: allItems.filter(i => i.category !== 'fixed').sort((a, b) => b.cost - a.cost),
-            tools: allItems.filter(i => i.category === 'fixed').sort((a, b) => b.cost - a.cost),
-            totalCost: allItems.reduce((sum, i) => sum + i.cost, 0)
+            consumables,
+            tools,
+            totalConsumableCost: consumables.reduce((sum, i) => sum + i.cost, 0),
+            totalLaborCost,
+            totalCost: consumables.reduce((sum, i) => sum + i.cost, 0) + totalLaborCost,
         };
-    }, [zones, recipes]);
+    }, [zones, recipes, methods]);
 
     if (loading) return <div className="text-center py-4 text-xs text-zinc-400">Loading materials...</div>;
 
-    if (materials.length === 0 && tools.length === 0) return (
+    if (consumables.length === 0 && tools.length === 0 && totalLaborCost === 0) return (
         <div className="text-center py-8 border border-dashed border-zinc-200 rounded-sm bg-zinc-50">
             <div className="text-zinc-400 text-xs">尚無備料資料 (請確認工法是否對應) / NO DATA</div>
         </div>
@@ -78,7 +88,11 @@ export const MaterialList: React.FC<{ zones: Zone[] }> = ({ zones }) => {
         <div className="space-y-8 animate-in fade-in duration-300">
             <div className="flex justify-between items-end border-b border-zinc-100 pb-4">
                 <div className="text-xs font-black uppercase text-zinc-400">ESTIMATED MATERIALS / 預估用料</div>
-                <div className="text-sm font-black">預估總成本: <span className="text-lg">${Math.round(totalCost).toLocaleString()}</span></div>
+                <div className="text-right text-sm font-black space-y-1">
+                    <div>預估耗材成本: <span className="text-lg">${Math.round(totalConsumableCost).toLocaleString()}</span></div>
+                    <div>預估人事成本: <span className="text-lg">${Math.round(totalLaborCost).toLocaleString()}</span></div>
+                    <div>預估總成本: <span className="text-lg">${Math.round(totalCost).toLocaleString()}</span></div>
+                </div>
             </div>
 
             {/* Materials Table */}
@@ -97,7 +111,7 @@ export const MaterialList: React.FC<{ zones: Zone[] }> = ({ zones }) => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-zinc-50">
-                            {materials.length > 0 ? materials.map((req, idx) => (
+                            {consumables.length > 0 ? consumables.map((req, idx) => (
                                 <tr key={idx} className="bg-white hover:bg-zinc-50/50">
                                     <td className="p-3 font-bold text-zinc-700">{req.name}</td>
                                     <td className="p-3 text-right font-mono text-zinc-600">

@@ -2,11 +2,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/InputComponents';
-import { getBasicAnalytics, getCategoryStats, subscribeToCases, getMethods } from '../services/storageService';
+import { getBasicAnalytics, getCategoryStats, subscribeToCases, getMethods, getRecipes } from '../services/storageService';
 import {
     CaseData,
     CaseStatus,
     MethodItem,
+    MethodRecipe,
     NavigationView,
     isActiveStatus,
     isAssessmentStatus,
@@ -14,7 +15,7 @@ import {
     normalizeCaseStatus
 } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { Calculator, TrendingUp, Users, Activity, Shield, FolderOpen, AlertTriangle, Clock } from 'lucide-react';
+import { Calculator, TrendingUp, Activity, Shield, FolderOpen, AlertTriangle, Clock, Wallet, Building2, UserCircle2 } from 'lucide-react';
 import {
     analyzeMethodPerformance,
     getDelayedCases,
@@ -23,6 +24,7 @@ import {
     MethodPerformance,
     DelayedCaseInfo
 } from '../services/analyticsService';
+import { estimateCaseLaborCost, estimateCaseMaterialCost, getCollectedAmount, getProfitDistribution } from '../utils/finance';
 
 
 interface DataCenterProps {
@@ -34,6 +36,7 @@ export const DataCenter: React.FC<DataCenterProps> = ({ onNavigate }) => {
     const [basicData, setBasicData] = useState<CaseData[]>([]);
     const [categoryStats, setCategoryStats] = useState<{ finalPrice: number, category: string }[]>([]);
     const [methods, setMethods] = useState<MethodItem[]>([]);
+    const [recipes, setRecipes] = useState<MethodRecipe[]>([]);
     const [basicLoading, setBasicLoading] = useState(true);
     const [categoryLoading, setCategoryLoading] = useState(true);
 
@@ -44,10 +47,11 @@ export const DataCenter: React.FC<DataCenterProps> = ({ onNavigate }) => {
         const loadBasic = async () => {
             try {
                 const data = await getBasicAnalytics();
-                const methodsData = await getMethods();
+                const [methodsData, recipesData] = await Promise.all([getMethods(), getRecipes()]);
                 if (mounted) {
                     setBasicData(data);
                     setMethods(methodsData);
+                    setRecipes(recipesData);
                     setBasicLoading(false);
                 }
             } catch (e) {
@@ -92,17 +96,36 @@ export const DataCenter: React.FC<DataCenterProps> = ({ onNavigate }) => {
         const totalRevenue = basicData
             .filter(c => !isAssessmentStatus(c.status))
             .reduce((sum, c) => sum + (c.finalPrice || 0), 0);
-        const totalCollected = basicData.reduce((sum, c) => {
-            const value = c.finalPrice || 0;
-            let paid = 0;
-            if (c.depositReceivedDate) paid += value * 0.7;
-            if (c.finalPaymentReceivedDate) paid += value * 0.3;
-            return sum + paid;
-        }, 0);
+        const totalCollected = basicData.reduce((sum, c) => sum + getCollectedAmount(c), 0);
         const outstanding = Math.max(totalRevenue - totalCollected, 0);
+        const estimatedConsumableCost = basicData.reduce((sum, c) => sum + estimateCaseMaterialCost(c, recipes), 0);
+        const estimatedLaborCost = basicData.reduce((sum, c) => sum + estimateCaseLaborCost(c, methods), 0);
+        const estimatedTotalCost = estimatedConsumableCost + estimatedLaborCost;
+        const estimatedNetProfit = Math.max(totalRevenue - estimatedTotalCost, 0);
+        const estimatedDistribution = getProfitDistribution(estimatedNetProfit);
+        const actualDistribution = getProfitDistribution(totalCollected);
+        const collectedRate = totalRevenue > 0 ? (totalCollected / totalRevenue) * 100 : 0;
 
-        return { assessmentCases, activeCases, warrantyCases, totalRevenue, totalCollected, outstanding };
-    }, [basicData]);
+        return {
+            assessmentCases,
+            activeCases,
+            warrantyCases,
+            totalRevenue,
+            totalCollected,
+            outstanding,
+            estimatedConsumableCost,
+            estimatedLaborCost,
+            estimatedTotalCost,
+            estimatedNetProfit,
+            collectedRate,
+            estimatedCompanyShare: estimatedDistribution.companyShare,
+            estimatedNeoShare: estimatedDistribution.neoShare,
+            estimatedZhongzhongShare: estimatedDistribution.zhongzhongShare,
+            actualCompanyShare: actualDistribution.companyShare,
+            actualNeoShare: actualDistribution.neoShare,
+            actualZhongzhongShare: actualDistribution.zhongzhongShare,
+        };
+    }, [basicData, recipes, methods]);
 
     const statusData = useMemo(() => {
         const assessmentCount = basicData.filter(c => isAssessmentStatus(c.status)).length;
@@ -189,6 +212,17 @@ interface OverviewTabProps {
         totalRevenue: number;
         totalCollected: number;
         outstanding: number;
+        estimatedConsumableCost: number;
+        estimatedLaborCost: number;
+        estimatedTotalCost: number;
+        estimatedNetProfit: number;
+        collectedRate: number;
+        estimatedCompanyShare: number;
+        estimatedNeoShare: number;
+        estimatedZhongzhongShare: number;
+        actualCompanyShare: number;
+        actualNeoShare: number;
+        actualZhongzhongShare: number;
     };
     statusData: { name: string; value: number; color: string }[];
     categoryData: { name: string; value: number; count: number }[];
@@ -198,12 +232,50 @@ interface OverviewTabProps {
 
 const OverviewTab: React.FC<OverviewTabProps> = ({ metrics, statusData, categoryData, basicLoading, categoryLoading }) => (
     <div className="space-y-8 animate-in slide-in-from-right duration-300">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+            <MetricCard icon={<TrendingUp size={20} />} label="預估合約總額 / EST. REVENUE" value={metrics.totalRevenue} prefix="$" subtext="Expected Contract Value" highlight loading={basicLoading} />
+            <MetricCard icon={<Wallet size={20} />} label="實際已收款 / ACTUAL CASH IN" value={metrics.totalCollected} prefix="$" subtext={`收款率 ${metrics.collectedRate.toFixed(1)}%`} loading={basicLoading} />
+            <MetricCard icon={<Calculator size={20} />} label="預估待收款 / EST. OUTSTANDING" value={metrics.outstanding} prefix="$" subtext="Expected Uncollected" loading={basicLoading} />
+            <MetricCard icon={<FolderOpen size={20} />} label="預估耗材成本 / EST. CONSUMABLE" value={metrics.estimatedConsumableCost} prefix="$" subtext="Consumables Only" loading={basicLoading} />
+            <MetricCard icon={<UserCircle2 size={20} />} label="預估人事成本 / EST. LABOR" value={metrics.estimatedLaborCost} prefix="$" subtext="Labor Only" loading={basicLoading} />
+            <MetricCard icon={<Activity size={20} />} label="預估淨利 / EST. NET PROFIT" value={metrics.estimatedNetProfit} prefix="$" subtext={`總成本 $${metrics.estimatedTotalCost.toLocaleString()}`} loading={basicLoading} />
+        </div>
+
+        <Card title="分潤分析 / PROFIT DISTRIBUTION">
+            <div className="space-y-6">
+                <div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-3">預估分潤 / ESTIMATED</div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <MetricCard icon={<Building2 size={20} />} label="公司 20% / COMPANY" value={metrics.estimatedCompanyShare} prefix="$" subtext="From Estimated Net Profit" loading={basicLoading} />
+                        <MetricCard icon={<UserCircle2 size={20} />} label="Neo 40%" value={metrics.estimatedNeoShare} prefix="$" subtext="From Estimated Net Profit" loading={basicLoading} />
+                        <MetricCard icon={<UserCircle2 size={20} />} label="忠忠 40%" value={metrics.estimatedZhongzhongShare} prefix="$" subtext="From Estimated Net Profit" loading={basicLoading} />
+                    </div>
+                </div>
+
+                <div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-3">實際進帳拆分 / ACTUAL CASH-IN VIEW</div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <MetricCard icon={<Building2 size={20} />} label="公司 20% / COMPANY" value={metrics.actualCompanyShare} prefix="$" subtext="From Actual Cash In" loading={basicLoading} />
+                        <MetricCard icon={<UserCircle2 size={20} />} label="Neo 40%" value={metrics.actualNeoShare} prefix="$" subtext="From Actual Cash In" loading={basicLoading} />
+                        <MetricCard icon={<UserCircle2 size={20} />} label="忠忠 40%" value={metrics.actualZhongzhongShare} prefix="$" subtext="From Actual Cash In" loading={basicLoading} />
+                    </div>
+                </div>
+            </div>
+            <div className="mt-4 text-xs text-zinc-500">
+                預估分潤：依「預估淨利」試算。實際進帳拆分：依「實際已收款」用同一比例拆分，方便看目前現金進來後怎麼分。
+            </div>
+            <div className="mt-2 text-xs text-zinc-500">
+                公式：預估淨利 = 預估合約總額 - 預估總成本；預估總成本 = 預估耗材成本 + 預估人事成本。公司取淨利 20%，剩餘由 Neo 與忠忠各分 50%。
+            </div>
+            <div className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-sm px-3 py-2">
+                提醒：實際進帳拆分是用「已收款」做現金視角拆分，方便看錢進來怎麼分；預估分潤則是看案件整體利潤，兩者用途不同。
+            </div>
+        </Card>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <MetricCard icon={<FolderOpen size={20} />} label="評估中 / ASSESSMENT" value={metrics.assessmentCases} subtext="New Leads" loading={basicLoading} />
             <MetricCard icon={<Activity size={20} />} label="進行中 / ACTIVE" value={metrics.activeCases} subtext="In Progress" loading={basicLoading} />
             <MetricCard icon={<Shield size={20} />} label="保固中 / WARRANTY" value={metrics.warrantyCases} subtext="Completed" loading={basicLoading} />
-            <MetricCard icon={<TrendingUp size={20} />} label="預估總營收 / REVENUE" value={metrics.totalRevenue} prefix="$" subtext="Total Value" highlight loading={basicLoading} />
-            <MetricCard icon={<Calculator size={20} />} label="待收款 / OUTSTANDING" value={metrics.outstanding} prefix="$" subtext={`已收 $${metrics.totalCollected.toLocaleString()}`} loading={basicLoading} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
