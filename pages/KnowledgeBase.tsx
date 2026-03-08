@@ -464,6 +464,8 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
   const [pristineMethod, setPristineMethod] = useState<MethodItem | null>(null);
   const [pendingDeleteMethodId, setPendingDeleteMethodId] = useState<string | null>(null);
   const [expandedStepIdx, setExpandedStepIdx] = useState<number | null>(0);
+  const [laborHourlyRateInput, setLaborHourlyRateInput] = useState('');
+  const [laborHoursInput, setLaborHoursInput] = useState('');
 
   useEffect(() => {
     loadMethods();
@@ -478,12 +480,16 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
     setEditingMethod(null);
     setPristineMethod(null);
     setExpandedStepIdx(0);
+    setLaborHourlyRateInput('');
+    setLaborHoursInput('');
   };
 
   const openMethodEditor = (method: MethodItem) => {
     setEditingMethod(method);
     setPristineMethod(method);
     setExpandedStepIdx(0);
+    setLaborHourlyRateInput(method.laborHourlyRate?.toString() || '');
+    setLaborHoursInput(method.laborHours?.toString() || '');
   };
 
   const groupedMethods = useMemo(() => {
@@ -584,6 +590,32 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
     return `${remainMonths} 個月`;
   };
 
+  const normalizeDecimalInput = (rawValue: string) => {
+    if (rawValue === '') return '';
+    if (rawValue === '-') return '-';
+    if (rawValue.startsWith('-.')) return rawValue.replace('-.', '-0.');
+    if (rawValue.startsWith('.')) return `0${rawValue}`;
+    return rawValue;
+  };
+
+  const updateLaborField = (field: 'laborHourlyRate' | 'laborHours', rawValue: string) => {
+    if (!editingMethod) return;
+
+    const normalizedValue = normalizeDecimalInput(rawValue);
+    if (!/^-?\d*\.?\d*$/.test(normalizedValue)) return;
+
+    if (field === 'laborHourlyRate') {
+      setLaborHourlyRateInput(normalizedValue);
+    } else {
+      setLaborHoursInput(normalizedValue);
+    }
+
+    setEditingMethod({
+      ...editingMethod,
+      [field]: normalizedValue === '' || normalizedValue === '-' ? 0 : parseFloat(normalizedValue) || 0,
+    });
+  };
+
   const laborCost = editingMethod ? ((editingMethod.laborHourlyRate || 0) * (editingMethod.laborHours || 0)) : 0;
   const totalStepMinutes = editingMethod ? editingMethod.steps.reduce((sum, step) => sum + step.prepMinutes + step.execMinutes, 0) : 0;
   const warrantyType = editingMethod?.warrantyType || 'leak_handled';
@@ -666,17 +698,19 @@ export const KnowledgeBase: React.FC<{ onBack: () => void, onNavigate: (view: Na
               <div className="space-y-4">
                 <Input
                   label="薪資單價（每小時） / HOURLY RATE"
-                  type="number"
-                  step="0.1"
-                  value={editingMethod.laborHourlyRate || ''}
-                  onChange={e => setEditingMethod({ ...editingMethod, laborHourlyRate: parseFloat(e.target.value) || 0 })}
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="例如：950 或 0.6"
+                  value={laborHourlyRateInput}
+                  onChange={e => updateLaborField('laborHourlyRate', e.target.value)}
                 />
                 <Input
                   label="預估工時（小時） / HOURS"
-                  type="number"
-                  step="0.1"
-                  value={editingMethod.laborHours || ''}
-                  onChange={e => setEditingMethod({ ...editingMethod, laborHours: parseFloat(e.target.value) || 0 })}
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="例如：1.5 或 0.6"
+                  value={laborHoursInput}
+                  onChange={e => updateLaborField('laborHours', e.target.value)}
                 />
                 <div className="bg-zinc-950 text-white rounded-sm p-4">
                   <div className="text-[9px] font-black text-zinc-300 uppercase tracking-widest">預估人事費 / EST. LABOR COST</div>
