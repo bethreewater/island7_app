@@ -121,12 +121,19 @@ const drawPhotoGrid = async (doc: jsPDF, title: string, labelPrefix: string, pho
   return y + 2;
 };
 
-export const generateConstructionLogPDF = async (data: CaseData, mode: 'save' | 'preview' = 'save') => {
+export const generateConstructionLogPDF = async (
+  data: CaseData,
+  mode: 'save' | 'preview' = 'save',
+  options?: { targetDate?: string },
+) => {
   const doc = new jsPDF();
   await loadFont(doc);
-  setupDocument(doc, 'CONSTRUCTION LOG REPORT', '施工日誌報告');
+  const targetDate = options?.targetDate;
+  setupDocument(doc, targetDate ? 'DAILY CONSTRUCTION LOG' : 'CONSTRUCTION LOG REPORT', targetDate ? '施工日誌日報' : '施工日誌報告');
 
-  const logs = [...(data.logs || [])].sort((a, b) => a.date.localeCompare(b.date));
+  const logs = [...(data.logs || [])]
+    .filter((log) => !targetDate || log.date === targetDate)
+    .sort((a, b) => a.date.localeCompare(b.date));
   const displayId = getDisplayCaseId(data.caseId, data.customerName);
   const summary = getLogSummary(logs);
 
@@ -137,10 +144,10 @@ export const generateConstructionLogPDF = async (data: CaseData, mode: 'save' | 
   doc.text(`工程地址 / ADDRESS: ${data.address || '-'}`, 14, 59);
   doc.text(`現場聯絡 / SITE CONTACT: ${data.siteContactName || data.customerName || '-'}`, 110, 45);
   doc.text(`聯絡電話 / PHONE: ${data.siteContactPhone || data.phone || '-'}`, 110, 52);
-  doc.text(`開工 / 完工: ${formatDate(data.startDate || '')} / ${formatDate(data.completionAcceptedDate || '')}`, 110, 59);
+  doc.text(`${targetDate ? '日誌日期 / LOG DATE' : '開工 / 完工'}: ${targetDate ? formatDate(targetDate) : `${formatDate(data.startDate || '')} / ${formatDate(data.completionAcceptedDate || '')}`}`, 110, 59);
 
   let y = 72;
-  y = drawSectionHeader(doc, '施工摘要 / WORK SUMMARY', y);
+  y = drawSectionHeader(doc, targetDate ? '當日摘要 / DAILY SUMMARY' : '施工摘要 / WORK SUMMARY', y);
   autoTable(doc, {
     startY: y + 2,
     head: [['項目', '數值', '項目', '數值']],
@@ -165,10 +172,10 @@ export const generateConstructionLogPDF = async (data: CaseData, mode: 'save' | 
   if (logs.length === 0) {
     doc.setFontSize(10);
     doc.setTextColor(...PDF_THEME.textSub);
-    doc.text('目前尚無施工日誌。', 16, y + 6);
-    drawFooter(doc);
-    outputPDF(doc, `CONSTRUCTION_LOG_${displayId}.pdf`, mode);
-    return;
+      doc.text(targetDate ? '該日期目前尚無施工日誌。' : '目前尚無施工日誌。', 16, y + 6);
+      drawFooter(doc);
+      outputPDF(doc, targetDate ? `CONSTRUCTION_LOG_${displayId}_${targetDate}.pdf` : `CONSTRUCTION_LOG_${displayId}.pdf`, mode);
+      return;
   }
 
   for (const [index, log] of logs.entries()) {
@@ -222,5 +229,5 @@ export const generateConstructionLogPDF = async (data: CaseData, mode: 'save' | 
   }
 
   drawFooter(doc);
-  outputPDF(doc, `CONSTRUCTION_LOG_${displayId}.pdf`, mode);
+  outputPDF(doc, targetDate ? `CONSTRUCTION_LOG_${displayId}_${targetDate}.pdf` : `CONSTRUCTION_LOG_${displayId}.pdf`, mode);
 };

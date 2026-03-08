@@ -440,7 +440,8 @@ export const ConstructionLogTab: React.FC<{
     logs: ConstructionLog[];
     onUpdate: (logs: ConstructionLog[], updatedSchedule?: ScheduleTask[]) => void;
     onExportPdf: () => Promise<void>;
-}> = ({ schedule, logs, onUpdate, onExportPdf }) => {
+    onExportDailyPdf: (date: string) => Promise<void>;
+}> = ({ schedule, logs, onUpdate, onExportPdf, onExportDailyPdf }) => {
     const [editingLogId, setEditingLogId] = useState<string | null>(null);
     const [logForm, setLogForm] = useState<Partial<ConstructionLog>>({});
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -613,6 +614,7 @@ export const ConstructionLogTab: React.FC<{
                     <div className="text-xl md:text-2xl font-black text-zinc-950 tracking-tighter uppercase leading-none">施工日誌 / DAILY LOG</div>
                 </div>
                 <div className="flex gap-2 flex-wrap justify-end">
+                    {selectedDate && <ExportButton onClick={() => onExportDailyPdf(selectedDate)} icon={<CalendarDays size={16} />} label="匯出當日 / DAILY PDF" />}
                     <ExportButton onClick={onExportPdf} icon={<FileText size={16} />} label="匯出 PDF / EXPORT" />
                     <Button variant="secondary" onClick={autoSyncFromSchedule} className="border-zinc-950"><History size={16} /> 同步</Button>
                     {!editingLogId && <Button onClick={startNew}><Plus size={16} /> 新增紀錄</Button>}

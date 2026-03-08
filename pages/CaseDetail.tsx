@@ -803,6 +803,15 @@ export const CaseDetail: React.FC<{
                 const { generateConstructionLogPDF } = await getPDFService();
                 return generateConstructionLogPDF(localData, 'save');
               }}
+              onExportDailyPdf={async (date) => {
+                const dayLogs = (localData.logs || []).filter((log) => log.date === date);
+                if (dayLogs.length === 0) {
+                  toast.error('該日期沒有施工日誌可匯出');
+                  return;
+                }
+                const { generateConstructionLogPDF } = await getPDFService();
+                return generateConstructionLogPDF(localData, 'save', { targetDate: date });
+              }}
               onUpdate={(newLogs, updatedSchedule) => {
                 const newData = { ...localData, logs: newLogs };
                 if (updatedSchedule) {
